@@ -95,10 +95,10 @@ export default function Navigation() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  className={`px-4 py-2 rounded-lg text-sm font-medium ${
                     pathname === link.href
-                      ? 'bg-[#00ceb8] text-[#0d0d14] font-semibold'
-                      : 'text-[#a0a0b8] hover:bg-[#1c1c28] hover:text-white'
+                      ? 'nav-tab-active text-white font-semibold'
+                      : 'nav-tab text-[#a0a0b8]'
                   }`}
                 >
                   {link.label}
@@ -170,10 +170,10 @@ export default function Navigation() {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className={`px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                    className={`px-4 py-3 rounded-lg text-sm font-medium ${
                       pathname === link.href
-                        ? 'bg-[#00ceb8] text-[#0d0d14] font-semibold'
-                        : 'text-[#a0a0b8] hover:bg-[#1c1c28] hover:text-white'
+                        ? 'nav-tab-active text-white font-semibold'
+                        : 'nav-tab text-[#a0a0b8]'
                     }`}
                   >
                     {link.label}

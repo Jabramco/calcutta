@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')
@@ -46,11 +47,11 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <img 
+            <Image 
               src="/logo.svg" 
               alt="Calcutta Logo" 
-              width="80" 
-              height="80"
+              width={80} 
+              height={80}
               className="object-contain"
             />
           </div>

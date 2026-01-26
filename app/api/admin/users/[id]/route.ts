@@ -5,7 +5,7 @@ import { getCurrentUser } from '@/lib/auth'
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check if user is admin
@@ -19,7 +19,8 @@ export async function PATCH(
     }
 
     const { username, password, role } = await request.json()
-    const userId = parseInt(params.id)
+    const { id } = await params
+    const userId = parseInt(id)
 
     // Build update data
     const updateData: any = {}
@@ -75,7 +76,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check if user is admin
@@ -88,7 +89,8 @@ export async function DELETE(
       )
     }
 
-    const userId = parseInt(params.id)
+    const { id } = await params
+    const userId = parseInt(id)
     
     // Prevent deleting yourself
     if (currentUser.userId === userId) {

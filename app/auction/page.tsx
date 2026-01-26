@@ -185,7 +185,7 @@ export default function AuctionPage() {
         lastBidCount.current = 0
         addChatMessage({
           type: 'bot',
-          message: `🏀 Now auctioning: ${data.currentTeam.name} - ${data.currentTeam.region} Region, Seed #${data.currentTeam.seed}`,
+          message: `Now auctioning: ${data.currentTeam.name} - ${data.currentTeam.region} Region, Seed #${data.currentTeam.seed}`,
           timestamp: Date.now()
         })
       }
@@ -242,7 +242,7 @@ export default function AuctionPage() {
         
         addChatMessage({
           type: 'system',
-          message: '🎉 Auction started! First team selected randomly...',
+          message: 'Auction started! First team selected randomly...',
           timestamp: Date.now()
         })
         await fetchAuctionState()
@@ -445,7 +445,16 @@ export default function AuctionPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <>
+      {/* Animated background orbs */}
+      <div className="glass-bg">
+        <div className="orb orb-1"></div>
+        <div className="orb orb-2"></div>
+        <div className="orb orb-3"></div>
+        <div className="orb orb-4"></div>
+      </div>
+
+      <div className="container mx-auto px-4 py-8 glass-content">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-white">Live Auction</h1>
         <div className="text-right">
@@ -457,12 +466,12 @@ export default function AuctionPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Current Team Card */}
         <div className="lg:col-span-1">
-          <div className="bg-[#15151e] rounded-2xl border border-[#2a2a38] p-6 mb-6">
+          <div className="glass-card rounded-2xl p-6 mb-6">
             <h2 className="text-xl font-semibold mb-4 text-white">Current Team</h2>
             
             {auctionState?.isActive && auctionState.currentTeam ? (
               <div>
-                <div className="mb-4 p-4 bg-[#1c1c28] rounded-xl border border-[#2a2a38]">
+                <div className="mb-4 p-4 glass-input rounded-xl">
                   <div className="text-3xl font-bold text-white mb-2">{auctionState.currentTeam.name}</div>
                   <div className="text-sm text-[#a0a0b8]">
                     {auctionState.currentTeam.region} Region • Seed #{auctionState.currentTeam.seed}
@@ -485,7 +494,7 @@ export default function AuctionPage() {
                   <div className={`p-3 rounded-lg text-center ${
                     warningState === 'twice' ? 'bg-[#f5365c]/20 border border-[#f5365c]' :
                     warningState === 'once' ? 'bg-[#fb6340]/20 border border-[#fb6340]' :
-                    'bg-[#1c1c28] border border-[#2a2a38]'
+                    'glass-input'
                   }`}>
                     <div className="text-xs text-[#a0a0b8]">Time remaining</div>
                     <div className="text-2xl font-bold text-white">
@@ -522,7 +531,7 @@ export default function AuctionPage() {
 
           {/* Auction Controls - Admin Only */}
           {currentUser?.role === 'admin' && (
-            <div className="bg-[#15151e] rounded-2xl border border-[#2a2a38] p-6">
+            <div className="glass-card rounded-2xl p-6">
               <h2 className="text-xl font-semibold mb-4 text-white">Controls</h2>
               
               <div className="space-y-3">
@@ -530,7 +539,7 @@ export default function AuctionPage() {
                   <button
                     onClick={startAuction}
                     disabled={loading}
-                    className="w-full px-4 py-3 bg-[#2dce89] text-white rounded-xl hover:bg-[#25a56e] disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
+                    className="w-full px-4 py-3 bg-[#00ceb8] text-[#0d0d14] rounded-xl hover:bg-[#00b5a1] disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
                   >
                     Start Auction
                   </button>
@@ -539,14 +548,14 @@ export default function AuctionPage() {
                     <button
                       onClick={soldTeam}
                       disabled={loading || !auctionState.currentBidder}
-                      className="w-full px-4 py-3 bg-[#00ceb8] text-[#0d0d14] rounded-xl hover:bg-[#00b5a1] disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
+                      className="w-full px-4 py-3 bg-[#00ceb8]/20 text-[#00ceb8] border border-[#00ceb8] rounded-xl hover:bg-[#00ceb8]/30 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
                     >
                       Sold! (Manual)
                     </button>
                     <button
                       onClick={stopAuction}
                       disabled={loading}
-                      className="w-full px-4 py-2 bg-[#f5365c] text-white rounded-xl hover:bg-[#d82947] disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
+                      className="w-full px-4 py-2 bg-[#f5365c]/20 text-[#f5365c] border border-[#f5365c] rounded-xl hover:bg-[#f5365c]/30 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
                     >
                       Pause Auction
                     </button>
@@ -555,7 +564,7 @@ export default function AuctionPage() {
                   <button
                     onClick={stopAuction}
                     disabled={loading}
-                    className="w-full px-4 py-2 bg-[#f5365c] text-white rounded-xl hover:bg-[#d82947] disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
+                    className="w-full px-4 py-2 bg-[#f5365c]/20 text-[#f5365c] border border-[#f5365c] rounded-xl hover:bg-[#f5365c]/30 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
                   >
                     Stop Auction
                   </button>
@@ -565,9 +574,9 @@ export default function AuctionPage() {
                 <button
                   onClick={restartAuction}
                   disabled={loading}
-                  className="w-full px-4 py-2 bg-[#fb6340] text-white rounded-xl hover:bg-[#e04e29] disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
+                  className="w-full px-4 py-2 bg-[#fb6340]/20 text-[#fb6340] border border-[#fb6340] rounded-xl hover:bg-[#fb6340]/30 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
                 >
-                  🔄 Restart Auction
+                  Restart Auction
                 </button>
               </div>
             </div>
@@ -576,7 +585,7 @@ export default function AuctionPage() {
 
         {/* Chat & Bidding */}
         <div className="lg:col-span-2">
-          <div className="bg-[#15151e] rounded-2xl border border-[#2a2a38] flex flex-col" style={{ height: '600px' }}>
+          <div className="glass-card rounded-2xl flex flex-col" style={{ height: '600px' }}>
             <div className="p-4 border-b border-[#2a2a38]">
               <h2 className="text-xl font-semibold text-white">Auction Chat</h2>
             </div>
@@ -601,10 +610,10 @@ export default function AuctionPage() {
             </div>
 
             {/* Bid Input */}
-            <div className="p-4 border-t border-[#2a2a38] bg-[#1c1c28]">
+            <div className="p-4 border-t border-[#2a2a38] glass-input">
               {currentUser ? (
                 <div className="flex gap-2">
-                  <div className="flex-1 px-4 py-2 bg-[#15151e] border border-[#2a2a38] rounded-xl text-white flex items-center">
+                  <div className="flex-1 px-4 py-2 glass-input rounded-xl text-white flex items-center">
                     Bidding as: <span className="font-bold ml-2">{currentUser.username}</span>
                   </div>
                   <input
@@ -612,7 +621,7 @@ export default function AuctionPage() {
                     value={bidAmount}
                     onChange={(e) => setBidAmount(e.target.value)}
                     placeholder="Bid amount"
-                    className="w-32 px-4 py-2 bg-[#15151e] border border-[#2a2a38] rounded-xl text-white placeholder-[#6a6a82] focus:outline-none focus:ring-2 focus:ring-[#00ceb8] focus:border-transparent transition-all"
+                    className="w-32 px-4 py-2 glass-input rounded-xl text-white placeholder-[#6a6a82] focus:outline-none focus:ring-2 focus:ring-[#00ceb8] focus:border-transparent transition-all"
                     disabled={!auctionState?.currentTeam}
                     step="0.01"
                     min={(auctionState?.currentBid || 0) + 0.01}
@@ -637,5 +646,6 @@ export default function AuctionPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }

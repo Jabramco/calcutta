@@ -114,12 +114,12 @@ export default function OwnerPage() {
               <tbody className="divide-y divide-[#2a2a38]">
                 {owner.teams.map(team => {
                   const roundsWon = []
-                  if (team.round64) roundsWon.push('64')
-                  if (team.round32) roundsWon.push('32')
+                  if (team.round64) roundsWon.push('R64')
+                  if (team.round32) roundsWon.push('R32')
                   if (team.sweet16) roundsWon.push('S16')
                   if (team.elite8) roundsWon.push('E8')
                   if (team.final4) roundsWon.push('F4')
-                  if (team.championship) roundsWon.push('🏆')
+                  if (team.championship) roundsWon.push('CHAMP')
 
                   const teamPayout = calculateTeamPayout(team, totalPot)
 

@@ -60,7 +60,16 @@ export default function TeamsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <>
+      {/* Animated background orbs */}
+      <div className="glass-bg">
+        <div className="orb orb-1"></div>
+        <div className="orb orb-2"></div>
+        <div className="orb orb-3"></div>
+        <div className="orb orb-4"></div>
+      </div>
+
+      <div className="container mx-auto px-4 py-8 glass-content">
       <h1 className="text-3xl font-bold mb-8 text-white">Teams</h1>
 
       <div className="space-y-4">
@@ -69,7 +78,7 @@ export default function TeamsPage() {
           const isExpanded = expandedRegion === region
 
           return (
-            <div key={region} className="bg-[#15151e] rounded-2xl border border-[#2a2a38] overflow-hidden">
+            <div key={region} className="glass-card rounded-2xl overflow-hidden">
               <button
                 onClick={() => setExpandedRegion(isExpanded ? null : region)}
                 className="w-full px-6 py-4 flex justify-between items-center hover:bg-[#1c1c28] transition-colors"
@@ -120,7 +129,7 @@ export default function TeamsPage() {
                                 {team[round as keyof TeamWithOwner] ? (
                                   <span className="text-[#2dce89] text-lg">✓</span>
                                 ) : (
-                                  <span className="text-[#2a2a38] text-lg">✗</span>
+                                  <span className="text-[#2a2a38] text-lg">-</span>
                                 )}
                               </td>
                             ))}
@@ -136,5 +145,6 @@ export default function TeamsPage() {
         })}
       </div>
     </div>
+    </>
   )
 }

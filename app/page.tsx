@@ -63,15 +63,24 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <>
+      {/* Animated background orbs */}
+      <div className="glass-bg">
+        <div className="orb orb-1"></div>
+        <div className="orb orb-2"></div>
+        <div className="orb orb-3"></div>
+        <div className="orb orb-4"></div>
+      </div>
+
+      <div className="container mx-auto px-4 py-8 glass-content">
       <h1 className="text-3xl font-bold mb-8 text-white">Dashboard</h1>
 
       {/* Global Stats */}
       {stats && (
-        <div className="bg-[#15151e] rounded-2xl border border-[#2a2a38] p-6 mb-8">
+        <div className="glass-card rounded-2xl p-6 mb-8">
           <h2 className="text-xl font-semibold mb-6 text-white">Tournament Stats</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-[#1c1c28] p-5 rounded-xl border border-[#2a2a38]">
+            <div className="glass-input p-5 rounded-xl">
               <div className="text-sm text-[#a0a0b8] mb-1">Total Prize Pool</div>
               <div className="text-3xl font-bold text-[#00ceb8]">
                 {formatCurrency(stats.totalPot)}
@@ -79,7 +88,7 @@ export default function DashboardPage() {
             </div>
             
             {Object.entries(stats.payoutPerWin).map(([round, payout]) => (
-              <div key={round} className="bg-[#1c1c28] p-5 rounded-xl border border-[#2a2a38]">
+              <div key={round} className="glass-input p-5 rounded-xl">
                 <div className="text-sm text-[#a0a0b8] mb-1">
                   {round.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}
                 </div>
@@ -94,7 +103,7 @@ export default function DashboardPage() {
       )}
 
       {/* Leaderboard */}
-      <div className="bg-[#15151e] rounded-2xl border border-[#2a2a38] overflow-hidden">
+      <div className="glass-card rounded-2xl overflow-hidden">
         <div className="flex justify-between items-center p-6 border-b border-[#2a2a38]">
           <h2 className="text-xl font-semibold text-white">Owner Leaderboard</h2>
           <div className="flex items-center space-x-2">
@@ -145,9 +154,6 @@ export default function DashboardPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <span className="text-sm font-bold text-white">#{index + 1}</span>
-                        {index === 0 && <span className="ml-2 text-lg">🏆</span>}
-                        {index === 1 && <span className="ml-2 text-lg">🥈</span>}
-                        {index === 2 && <span className="ml-2 text-lg">🥉</span>}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -186,5 +192,6 @@ export default function DashboardPage() {
         )}
       </div>
     </div>
+    </>
   )
 }

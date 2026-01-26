@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function SignupPage() {
   const [username, setUsername] = useState('')
@@ -62,8 +63,17 @@ export default function SignupPage() {
     <div className="min-h-screen bg-[#0d0d14] flex items-center justify-center px-4">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
+          <div className="flex justify-center mb-4">
+            <Image 
+              src="/logo.svg" 
+              alt="Calcutta Logo" 
+              width={80} 
+              height={80}
+              className="object-contain"
+            />
+          </div>
           <h2 className="text-4xl font-bold text-white mb-2">
-            🏀 NCAA Calcutta
+            Calcutta
           </h2>
           <p className="text-[#a0a0b8] text-sm">
             Create your account

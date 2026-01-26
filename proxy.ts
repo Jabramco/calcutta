@@ -8,7 +8,7 @@ const publicRoutes = ['/login', '/signup']
 // Routes that require admin access
 const adminRoutes = ['/finances', '/admin']
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   
   // Allow public routes
@@ -42,7 +42,7 @@ export async function middleware(request: NextRequest) {
   return NextResponse.next()
 }
 
-// Configure which routes use this middleware
+// Configure which routes use this proxy
 export const config = {
   matcher: [
     /*

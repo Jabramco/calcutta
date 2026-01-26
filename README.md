@@ -2,7 +2,28 @@
 
 A comprehensive web application for managing NCAA tournament Calcutta auctions. Track team ownership, auction costs, tournament progress, and automatically distribute prize pools based on round-by-round performance.
 
+## 🚀 Quick Deploy
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Jabramco/calcutta&env=JWT_SECRET&envDescription=Required%20environment%20variables&project-name=calcutta-auction&repository-name=calcutta&stores=[{"type":"postgres"}])
+
+**[See detailed deployment instructions →](DEPLOYMENT.md)**
+
 ## Features
+
+### 🎭 Live Auction System
+- Real-time bidding with automated auction bot
+- Random team selection from unassigned teams
+- Countdown timer with "Going once, twice, sold!" announcements
+- Chat history with bid tracking
+- Admin controls to restart auction
+- Automatic database updates when teams are sold
+
+### 🔐 Authentication & User Management
+- Secure user registration and login
+- Role-based access control (Admin/User)
+- Admin panel for user management
+- JWT-based session management
+- Protected routes with middleware
 
 ### 🏆 Dashboard & Leaderboard
 - Real-time owner rankings sorted by ROI or total payout
@@ -65,8 +86,10 @@ ROI% = ((Total Payout - Total Investment) / Total Investment) × 100
 
 - **Framework**: Next.js 14 with App Router
 - **Language**: TypeScript
-- **Database**: SQLite with Prisma ORM
-- **Styling**: Tailwind CSS
+- **Database**: PostgreSQL with Prisma ORM
+- **Styling**: Tailwind CSS (Dark theme inspired by Sleeper)
+- **Authentication**: JWT with bcrypt password hashing
+- **Deployment**: Vercel with Vercel Postgres
 - **Runtime**: Node.js
 
 ## Getting Started
@@ -74,12 +97,13 @@ ROI% = ((Total Payout - Total Investment) / Total Investment) × 100
 ### Prerequisites
 - Node.js 18+ installed
 - npm or yarn package manager
+- PostgreSQL database (local or hosted)
 
 ### Installation
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/Jabramco/calcutta.git
 cd calcutta
 ```
 
@@ -88,22 +112,36 @@ cd calcutta
 npm install
 ```
 
-3. Set up the database:
-```bash
-npx prisma migrate dev
+3. Set up environment variables:
+Create a `.env` file in the root directory:
+```env
+DATABASE_URL="postgresql://user:password@localhost:5432/calcutta"
+JWT_SECRET="your-secret-key-change-in-production"
+NODE_ENV="development"
 ```
 
-4. Seed the database with sample data:
+4. Set up the database:
 ```bash
-npx prisma db seed
+npx prisma generate
+npx prisma db push
 ```
 
-5. Start the development server:
+5. Seed the database with sample data:
+```bash
+npm run seed
+```
+
+6. Create an admin user:
+```bash
+npx tsx scripts/make-admin.ts
+```
+
+7. Start the development server:
 ```bash
 npm run dev
 ```
 
-6. Open your browser and navigate to:
+8. Open your browser and navigate to:
 ```
 http://localhost:3000
 ```
@@ -126,12 +164,37 @@ http://localhost:3000
 - `cost`: Auction cost
 - `round64`, `round32`, `sweet16`, `elite8`, `final4`, `championship`: Boolean flags for round progress
 
+### User Model
+- `id`: Unique identifier
+- `username`: Unique username
+- `password`: Hashed password
+- `role`: User role (admin/user)
+- `createdAt`: Account creation timestamp
+
 ### Settings Model
 - `id`: Unique identifier
 - `key`: Setting key
 - `value`: Setting value
 
 ## API Routes
+
+### Authentication
+- `POST /api/auth/signup` - Create a new user account
+- `POST /api/auth/login` - Log in with username and password
+- `POST /api/auth/logout` - Log out and clear session
+- `GET /api/auth/me` - Get current logged-in user
+
+### Admin
+- `GET /api/admin/users` - Get all users (admin only)
+- `POST /api/admin/users` - Create a new user (admin only)
+- `GET /api/admin/users/[id]` - Get specific user (admin only)
+- `PATCH /api/admin/users/[id]` - Update user (admin only)
+- `DELETE /api/admin/users/[id]` - Delete user (admin only)
+
+### Auction
+- `GET /api/auction` - Get current auction state
+- `POST /api/auction` - Manage auction actions (start, bid, sold, next)
+- `POST /api/auction/restart` - Reset auction (admin only)
 
 ### Stats
 - `GET /api/stats` - Get global tournament statistics
@@ -156,40 +219,79 @@ http://localhost:3000
 ```
 calcutta/
 ├── app/
+│   ├── admin/          # Admin user management page
 │   ├── api/            # API route handlers
+│   │   ├── admin/      # Admin endpoints
+│   │   ├── auction/    # Auction management
+│   │   ├── auth/       # Authentication endpoints
+│   │   ├── leaderboard/
+│   │   ├── owners/
+│   │   ├── stats/
+│   │   └── teams/
+│   ├── auction/        # Live auction page
+│   ├── finances/       # Finances tracking page
+│   ├── login/          # Login page
+│   ├── signup/         # Registration page
 │   ├── owners/[id]/    # Owner profile pages
 │   ├── teams/          # Team management page
-│   ├── finances/       # Finances page
 │   ├── layout.tsx      # Root layout with navigation
-│   └── page.tsx        # Dashboard/Leaderboard
+│   ├── page.tsx        # Dashboard/Leaderboard
+│   └── globals.css     # Global styles (dark theme)
 ├── components/
 │   └── Navigation.tsx  # Navigation component
 ├── lib/
+│   ├── auth.ts         # JWT authentication utilities
 │   ├── calculations.ts # Core calculation functions
 │   ├── prisma.ts       # Prisma client
-│   └── types.ts        # TypeScript type definitions
+│   ├── types.ts        # TypeScript type definitions
+│   └── hooks/
+│       └── useAuth.ts  # Authentication React hook
 ├── prisma/
 │   ├── schema.prisma   # Database schema
 │   ├── seed.ts         # Seed script
 │   └── migrations/     # Database migrations
+├── scripts/
+│   ├── make-admin.ts   # Script to make user admin
+│   └── reset-auction.ts # Script to reset auction data
+├── middleware.ts       # Next.js middleware for route protection
 └── package.json
 ```
 
 ## Sample Data
 
 The seed script populates the database with:
-- 10 owners with randomized names
+- 1 admin user (username: "justin", password: "password123")
+- Sample owners
 - 64 NCAA tournament teams across 4 regions
-- Randomized auction costs ($15-$80 based on seed)
-- Sample tournament progress for demonstration
+- All teams start unassigned for auction day
 
 ## Features & Functionality
 
+### Live Auction
+- Real-time bidding interface
+- Automated countdown timer (5 seconds per stage)
+- Chat history with localStorage persistence
+- Admin-only controls for managing auction
+- Automatic team assignment and database updates
+
+### Authentication
+- Secure JWT-based sessions
+- Password hashing with bcrypt
+- Protected routes with middleware
+- Role-based access control
+
 ### Auto-save
-All edits in the Team Management and Finances pages are automatically saved to the database.
+All edits in the Team Management page are automatically saved to the database.
 
 ### Responsive Design
 The application is fully responsive and works on desktop, tablet, and mobile devices.
+
+### Dark Theme
+Modern dark UI inspired by Sleeper.com with:
+- Teal accent colors (#00ceb8)
+- Dark backgrounds (#0d0d14, #15151e, #1c1c28)
+- Smooth transitions and hover effects
+- Custom scrollbar styling
 
 ### Real-time Calculations
 All payouts, ROI percentages, and statistics are calculated in real-time based on current data.
@@ -217,17 +319,24 @@ export const PAYOUT_PERCENTAGES = {
 
 ## Production Deployment
 
-1. Build the application:
-```bash
-npm run build
-```
+**See [DEPLOYMENT.md](DEPLOYMENT.md) for complete Vercel deployment instructions.**
 
-2. Start the production server:
-```bash
-npm start
-```
+### Quick Steps:
+1. Push your code to GitHub
+2. Import repository on Vercel
+3. Add Vercel Postgres database
+4. Set environment variables (JWT_SECRET)
+5. Deploy
+6. Run database migrations and seed
 
-For deployment to platforms like Vercel, Railway, or Heroku, consult their respective documentation for Next.js applications.
+Your app will be live at `https://your-project.vercel.app`
+
+## Environment Variables
+
+Required environment variables:
+- `DATABASE_URL` - PostgreSQL connection string
+- `JWT_SECRET` - Secret key for JWT token generation
+- `NODE_ENV` - Environment (development/production)
 
 ## License
 

@@ -59,8 +59,7 @@ export async function PATCH(
         id: true,
         username: true,
         role: true,
-        createdAt: true,
-        updatedAt: true
+        createdAt: true
       }
     })
 

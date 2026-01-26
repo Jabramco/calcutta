@@ -66,7 +66,7 @@ export default function LoginPage() {
             Calcutta
           </h2>
           <p className="text-[#a0a0b8] text-sm">
-            Sign in to your account
+            Powered by the Lizard. He is king
           </p>
         </div>
         <form className="mt-8 space-y-6 glass-card p-8 rounded-2xl" onSubmit={handleSubmit}>

@@ -514,7 +514,7 @@ export default function AuctionPage() {
                 <button
                   onClick={nextTeam}
                   disabled={loading}
-                  className="px-6 py-3 bg-[#00ceb8] text-[#0d0d14] rounded-xl hover:bg-[#00b5a1] disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
+                  className="btn-gradient-primary px-6 py-3 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                 >
                   Next Team (Random)
                 </button>
@@ -539,7 +539,7 @@ export default function AuctionPage() {
                   <button
                     onClick={startAuction}
                     disabled={loading}
-                    className="w-full px-4 py-3 bg-[#00ceb8] text-[#0d0d14] rounded-xl hover:bg-[#00b5a1] disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
+                    className="btn-gradient-primary w-full px-4 py-3 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                   >
                     Start Auction
                   </button>
@@ -548,14 +548,14 @@ export default function AuctionPage() {
                     <button
                       onClick={soldTeam}
                       disabled={loading || !auctionState.currentBidder}
-                      className="w-full px-4 py-3 bg-[#00ceb8]/20 text-[#00ceb8] border border-[#00ceb8] rounded-xl hover:bg-[#00ceb8]/30 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
+                      className="btn-gradient-dark w-full px-4 py-3 text-[#00ceb8] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                     >
                       Sold! (Manual)
                     </button>
                     <button
                       onClick={stopAuction}
                       disabled={loading}
-                      className="w-full px-4 py-2 bg-[#f5365c]/20 text-[#f5365c] border border-[#f5365c] rounded-xl hover:bg-[#f5365c]/30 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
+                      className="btn-gradient-danger w-full px-4 py-2 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                     >
                       Pause Auction
                     </button>
@@ -564,7 +564,7 @@ export default function AuctionPage() {
                   <button
                     onClick={stopAuction}
                     disabled={loading}
-                    className="w-full px-4 py-2 bg-[#f5365c]/20 text-[#f5365c] border border-[#f5365c] rounded-xl hover:bg-[#f5365c]/30 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
+                    className="btn-gradient-danger w-full px-4 py-2 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                   >
                     Stop Auction
                   </button>
@@ -574,7 +574,7 @@ export default function AuctionPage() {
                 <button
                   onClick={restartAuction}
                   disabled={loading}
-                  className="w-full px-4 py-2 bg-[#fb6340]/20 text-[#fb6340] border border-[#fb6340] rounded-xl hover:bg-[#fb6340]/30 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
+                  className="btn-gradient-secondary w-full px-4 py-2 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                 >
                   Restart Auction
                 </button>
@@ -630,7 +630,7 @@ export default function AuctionPage() {
                   <button
                     onClick={placeBid}
                     disabled={loading || !auctionState?.currentTeam || !bidAmount}
-                    className="px-6 py-2 bg-[#00ceb8] text-[#0d0d14] rounded-xl hover:bg-[#00b5a1] disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all"
+                    className="btn-gradient-primary px-6 py-2 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                   >
                     Bid
                   </button>

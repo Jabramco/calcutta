@@ -43,8 +43,15 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0d0d14] flex items-center justify-center px-4">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen bg-[#0d0d14] flex items-center justify-center px-4 relative overflow-hidden">
+      {/* Animated gradient orbs */}
+      <div className="login-background-orbs">
+        <div className="login-orb login-orb-1"></div>
+        <div className="login-orb login-orb-2"></div>
+        <div className="login-orb login-orb-3"></div>
+      </div>
+
+      <div className="max-w-md w-full space-y-8 relative z-10">
         <div className="text-center">
           <div className="flex justify-center mb-4">
             <Image 
@@ -52,17 +59,17 @@ export default function LoginPage() {
               alt="Calcutta Logo" 
               width={80} 
               height={80}
-              className="object-contain"
+              className="object-contain drop-shadow-lg"
             />
           </div>
-          <h2 className="text-4xl font-bold text-white mb-2">
+          <h2 className="text-4xl font-bold text-white mb-2 drop-shadow-lg">
             Calcutta
           </h2>
           <p className="text-[#a0a0b8] text-sm">
             Sign in to your account
           </p>
         </div>
-        <form className="mt-8 space-y-6 bg-[#15151e] p-8 rounded-2xl border border-[#2a2a38]" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-6 glass-card p-8 rounded-2xl" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-[#a0a0b8] mb-2">
@@ -75,7 +82,7 @@ export default function LoginPage() {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="appearance-none rounded-xl relative block w-full px-4 py-3 bg-[#1c1c28] border border-[#2a2a38] text-white placeholder-[#6a6a82] focus:outline-none focus:ring-2 focus:ring-[#00ceb8] focus:border-transparent transition-all"
+                className="appearance-none rounded-xl relative block w-full px-4 py-3 glass-input text-white placeholder-[#6a6a82] focus:outline-none focus:ring-2 focus:ring-[#00ceb8] focus:border-transparent transition-all"
                 placeholder="Enter your username"
               />
             </div>
@@ -91,7 +98,7 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none rounded-xl relative block w-full px-4 py-3 pr-12 bg-[#1c1c28] border border-[#2a2a38] text-white placeholder-[#6a6a82] focus:outline-none focus:ring-2 focus:ring-[#00ceb8] focus:border-transparent transition-all"
+                  className="appearance-none rounded-xl relative block w-full px-4 py-3 pr-12 glass-input text-white placeholder-[#6a6a82] focus:outline-none focus:ring-2 focus:ring-[#00ceb8] focus:border-transparent transition-all"
                   placeholder="Enter your password"
                 />
                 <button

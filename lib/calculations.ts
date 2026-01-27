@@ -24,20 +24,25 @@ const WINNERS_PER_ROUND = {
  * Calculate total pot from all team costs
  */
 export function calculateTotalPot(teams: Pick<Team, 'cost'>[]): number {
-  return teams.reduce((sum, team) => sum + Number(team.cost), 0)
+  if (!teams || teams.length === 0) return 0
+  return teams.reduce((sum, team) => {
+    const cost = Number(team.cost)
+    return sum + (isNaN(cost) ? 0 : cost)
+  }, 0)
 }
 
 /**
  * Calculate payout per win for each round based on total pot
  */
 export function calculatePayoutPerWin(totalPot: number) {
+  const safePot = totalPot || 0
   return {
-    round64: (totalPot * PAYOUT_PERCENTAGES.round64) / WINNERS_PER_ROUND.round64,
-    round32: (totalPot * PAYOUT_PERCENTAGES.round32) / WINNERS_PER_ROUND.round32,
-    sweet16: (totalPot * PAYOUT_PERCENTAGES.sweet16) / WINNERS_PER_ROUND.sweet16,
-    elite8: (totalPot * PAYOUT_PERCENTAGES.elite8) / WINNERS_PER_ROUND.elite8,
-    final4: (totalPot * PAYOUT_PERCENTAGES.final4) / WINNERS_PER_ROUND.final4,
-    championship: (totalPot * PAYOUT_PERCENTAGES.championship) / WINNERS_PER_ROUND.championship
+    round64: (safePot * PAYOUT_PERCENTAGES.round64) / WINNERS_PER_ROUND.round64,
+    round32: (safePot * PAYOUT_PERCENTAGES.round32) / WINNERS_PER_ROUND.round32,
+    sweet16: (safePot * PAYOUT_PERCENTAGES.sweet16) / WINNERS_PER_ROUND.sweet16,
+    elite8: (safePot * PAYOUT_PERCENTAGES.elite8) / WINNERS_PER_ROUND.elite8,
+    final4: (safePot * PAYOUT_PERCENTAGES.final4) / WINNERS_PER_ROUND.final4,
+    championship: (safePot * PAYOUT_PERCENTAGES.championship) / WINNERS_PER_ROUND.championship
   }
 }
 
@@ -107,14 +112,20 @@ export function getRoundPercentages() {
 /**
  * Format currency for display
  */
-export function formatCurrency(amount: number): string {
+export function formatCurrency(amount: number | null | undefined): string {
+  if (amount === null || amount === undefined || isNaN(amount)) {
+    return '$0.00'
+  }
   return `$${amount.toFixed(2)}`
 }
 
 /**
  * Format ROI percentage for display
  */
-export function formatROI(roi: number): string {
+export function formatROI(roi: number | null | undefined): string {
+  if (roi === null || roi === undefined || isNaN(roi)) {
+    return '+0.00%'
+  }
   const sign = roi >= 0 ? '+' : ''
   return `${sign}${roi.toFixed(2)}%`
 }

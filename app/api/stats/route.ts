@@ -17,15 +17,26 @@ export async function GET() {
     const percentages = getRoundPercentages()
 
     return NextResponse.json({
-      totalPot,
+      totalPot: totalPot || 0,
       payoutPerWin,
       percentages
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching stats:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch stats' },
-      { status: 500 }
-    )
+    console.error('Error details:', error?.message, error?.stack)
+    
+    // Return safe default values instead of error
+    return NextResponse.json({
+      totalPot: 0,
+      payoutPerWin: {
+        round64: 0,
+        round32: 0,
+        sweet16: 0,
+        elite8: 0,
+        final4: 0,
+        championship: 0
+      },
+      percentages: getRoundPercentages()
+    })
   }
 }

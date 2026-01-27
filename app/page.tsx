@@ -103,7 +103,7 @@ export default function DashboardPage() {
       {/* Leaderboard */}
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-          <h2 className="text-2xl font-bold text-white">Owner Leaderboard</h2>
+          <h2 className="text-2xl font-bold text-white">Leaderboard</h2>
           <div className="flex items-center space-x-2">
             <span className="text-sm text-[#a0a0b8]">Sort by:</span>
             <select
@@ -130,7 +130,7 @@ export default function DashboardPage() {
                 className="glass-card p-6 rounded-2xl hover:shadow-xl hover:scale-105 transition-all cursor-pointer relative"
               >
                 {/* Rank Badge */}
-                <div className="absolute -top-3 -right-3 w-12 h-12 bg-gradient-to-br from-[#00ceb8] to-[#00b5a1] rounded-full flex items-center justify-center shadow-lg">
+                <div className="absolute -top-3 -right-3 w-12 h-12 bg-gradient-to-br from-[#00e6cf] via-[#00ceb8] to-[#00a892] rounded-full flex items-center justify-center shadow-[0_4px_15px_rgba(0,206,184,0.4),0_0_20px_rgba(0,206,184,0.3),inset_0_1px_0_rgba(255,255,255,0.3),inset_0_-2px_8px_rgba(0,0,0,0.3)]">
                   <span className="text-[#0d0d14] font-bold text-base">#{index + 1}</span>
                 </div>
 

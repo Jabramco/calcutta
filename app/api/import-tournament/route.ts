@@ -87,15 +87,13 @@ export async function POST(request: Request) {
       )
     }
 
-    // Track updates and prevent duplicate championships
-    let updatedTeams = 0
-    const updates: string[] = []
-    let championshipWinner: string | null = null
+    // Build a map of team wins by round
+    const teamWins: Map<string, Set<string>> = new Map()
 
     // Get all teams from our database
     const teams = await prisma.team.findMany()
 
-    // Process each game
+    // Process each game to build the win map
     for (const event of data.events) {
       if (!event.competitions?.[0]) continue
       
@@ -105,20 +103,17 @@ export async function POST(request: Request) {
       if (!isCompleted) continue
 
       // Check if this is actually a tournament game
-      const isTournamentGame = event.season?.type === 3 // Type 3 is postseason
-      if (!isTournamentGame) {
-        console.log(`Skipping non-tournament game: ${event.name}`)
-        continue
-      }
+      const isTournamentGame = event.season?.type === 3
+      if (!isTournamentGame) continue
 
-      // Check for tournament round info in notes
+      // Check for tournament round info
       const notes = competition.notes || []
       let roundName = ''
       
       for (const note of notes) {
         if (note.headline) {
           const headline = note.headline.toLowerCase()
-          for (const [key, field] of Object.entries(ROUND_MAP)) {
+          for (const [key] of Object.entries(ROUND_MAP)) {
             if (headline.includes(key)) {
               roundName = key
               break
@@ -131,7 +126,7 @@ export async function POST(request: Request) {
       // If no round found in notes, try the event name
       if (!roundName && event.name) {
         const eventName = event.name.toLowerCase()
-        for (const [key, field] of Object.entries(ROUND_MAP)) {
+        for (const [key] of Object.entries(ROUND_MAP)) {
           if (eventName.includes(key)) {
             roundName = key
             break
@@ -139,19 +134,10 @@ export async function POST(request: Request) {
         }
       }
 
-      if (!roundName) {
-        console.log(`No round identified for: ${event.name}`)
-        continue
-      }
+      if (!roundName) continue
 
       const roundKey = ROUND_MAP[roundName]
       if (!roundKey) continue
-
-      // Special handling for championship - only allow one winner
-      if (roundKey === 'championship' && championshipWinner) {
-        console.log(`Championship already assigned to ${championshipWinner}, skipping`)
-        continue
-      }
 
       // Find the winning team
       const competitors = competition.competitors || []
@@ -161,35 +147,65 @@ export async function POST(request: Request) {
 
       const winnerName = winner.team.displayName || winner.team.shortDisplayName
 
+      // Add this round win to the team's record
+      if (!teamWins.has(winnerName)) {
+        teamWins.set(winnerName, new Set())
+      }
+      teamWins.get(winnerName)!.add(roundKey)
+      
+      console.log(`${winnerName} won ${roundKey}`)
+    }
+
+    // Now update our database teams based on the accumulated wins
+    let updatedTeams = 0
+    const updates: string[] = []
+
+    for (const [apiTeamName, rounds] of teamWins.entries()) {
       // Try to match with our teams
       const matchedTeam = teams.find((team) => {
         const teamNameLower = team.name.toLowerCase()
-        const winnerNameLower = winnerName.toLowerCase()
+        const apiNameLower = apiTeamName.toLowerCase()
         
         return (
-          teamNameLower === winnerNameLower ||
-          teamNameLower.includes(winnerNameLower) ||
-          winnerNameLower.includes(teamNameLower)
+          teamNameLower === apiNameLower ||
+          teamNameLower.includes(apiNameLower) ||
+          apiNameLower.includes(teamNameLower)
         )
       })
 
       if (matchedTeam) {
-        // Update the team's round win
+        // Build the update data
+        const updateData: any = {}
+        
+        // If they won the championship, they won all rounds
+        if (rounds.has('championship')) {
+          updateData.round64 = true
+          updateData.round32 = true
+          updateData.sweet16 = true
+          updateData.elite8 = true
+          updateData.final4 = true
+          updateData.championship = true
+        } else {
+          // Otherwise, just mark the rounds they won
+          if (rounds.has('round64')) updateData.round64 = true
+          if (rounds.has('round32')) updateData.round32 = true
+          if (rounds.has('sweet16')) updateData.sweet16 = true
+          if (rounds.has('elite8')) updateData.elite8 = true
+          if (rounds.has('final4')) updateData.final4 = true
+        }
+
+        // Update the team
         await prisma.team.update({
           where: { id: matchedTeam.id },
-          data: { [roundKey]: true }
+          data: updateData
         })
 
         updatedTeams++
-        updates.push(`${matchedTeam.name} won ${roundKey} (${roundName})`)
-        console.log(`Updated: ${matchedTeam.name} - ${roundKey}`)
-        
-        // Track championship winner
-        if (roundKey === 'championship') {
-          championshipWinner = matchedTeam.name
-        }
+        const roundsList = Array.from(rounds).join(', ')
+        updates.push(`${matchedTeam.name}: ${roundsList}`)
+        console.log(`Updated: ${matchedTeam.name} - ${roundsList}`)
       } else {
-        console.log(`No match found for: ${winnerName} in round: ${roundName}`)
+        console.log(`No match found for: ${apiTeamName}`)
       }
     }
 

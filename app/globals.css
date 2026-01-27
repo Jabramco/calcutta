@@ -99,11 +99,11 @@ input:focus, textarea:focus, select:focus {
 
 /* Glassmorphism utility classes */
 .glass-card {
-  background: rgba(21, 21, 30, 0.4);
+  background: rgba(13, 13, 20, 0.25);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
 }
 
 .glass-card-hover:hover {
@@ -112,10 +112,10 @@ input:focus, textarea:focus, select:focus {
 }
 
 .glass-input {
-  background: rgba(28, 28, 40, 0.6);
+  background: rgba(13, 13, 20, 0.4);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .glass-nav {
@@ -141,14 +141,14 @@ input:focus, textarea:focus, select:focus {
   position: absolute;
   border-radius: 50%;
   filter: blur(60px);
-  opacity: 0.30;
+  opacity: 0.25;
   animation: float 20s infinite ease-in-out;
 }
 
 .orb-1 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, #00ceb8, transparent);
+  width: 900px;
+  height: 600px;
+  background: radial-gradient(ellipse, #00ceb8 0%, rgba(0, 206, 184, 0.8) 10%, rgba(0, 206, 184, 0.5) 25%, rgba(0, 206, 184, 0.3) 40%, rgba(0, 206, 184, 0.15) 55%, rgba(0, 206, 184, 0.05) 70%, transparent 85%);
   top: 5%;
   left: 5%;
   animation-delay: 0s;
@@ -156,9 +156,9 @@ input:focus, textarea:focus, select:focus {
 }
 
 .orb-2 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, #9d4edd, transparent);
+  width: 800px;
+  height: 500px;
+  background: radial-gradient(ellipse, #ffffff 0%, rgba(255, 255, 255, 0.8) 10%, rgba(255, 255, 255, 0.5) 25%, rgba(255, 255, 255, 0.3) 40%, rgba(255, 255, 255, 0.15) 55%, rgba(255, 255, 255, 0.05) 70%, transparent 85%);
   top: 15%;
   right: 10%;
   animation-delay: 3s;
@@ -166,23 +166,13 @@ input:focus, textarea:focus, select:focus {
 }
 
 .orb-3 {
-  width: 450px;
-  height: 450px;
-  background: radial-gradient(circle, #4cc9f0, transparent);
+  width: 850px;
+  height: 550px;
+  background: radial-gradient(ellipse, #00ceb8 0%, rgba(0, 206, 184, 0.8) 10%, rgba(0, 206, 184, 0.5) 25%, rgba(0, 206, 184, 0.3) 40%, rgba(0, 206, 184, 0.15) 55%, rgba(0, 206, 184, 0.05) 70%, transparent 85%);
   top: 35%;
   left: 25%;
   animation-delay: 6s;
   animation-duration: 22s;
-}
-
-.orb-4 {
-  width: 350px;
-  height: 350px;
-  background: radial-gradient(circle, #ff6b35, transparent);
-  top: 45%;
-  right: 15%;
-  animation-delay: 9s;
-  animation-duration: 28s;
 }
 
 @keyframes float {

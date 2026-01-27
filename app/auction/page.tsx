@@ -483,9 +483,6 @@ export default function AuctionPage() {
       {/* Animated background orbs */}
       <div className="glass-bg">
         <div className="orb orb-1"></div>
-        <div className="orb orb-2"></div>
-        <div className="orb orb-3"></div>
-        <div className="orb orb-4"></div>
       </div>
 
       <div className="container mx-auto px-4 py-8 glass-content">
@@ -500,17 +497,18 @@ export default function AuctionPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Current Team Card */}
         <div className="lg:col-span-1">
-          <div className="glass-card rounded-2xl p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4 text-white">Current Team</h2>
-            
-            {auctionState?.isActive && auctionState.currentTeam ? (
-              <div>
-                <div className="mb-4 p-4 glass-input rounded-xl">
-                  <div className="text-3xl font-bold text-white mb-2">{auctionState.currentTeam.name}</div>
-                  <div className="text-sm text-[#a0a0b8]">
-                    {auctionState.currentTeam.region} Region • Seed #{auctionState.currentTeam.seed}
-                  </div>
+          <h2 className="text-xl font-semibold mb-4 text-white">Current Team</h2>
+          
+          {auctionState?.isActive && auctionState.currentTeam ? (
+            <div>
+              <div className="mb-6 p-6 glass-card rounded-2xl border-2 border-[#00ceb8]/30 shadow-lg shadow-[#00ceb8]/20">
+                <div className="text-3xl font-bold text-white mb-2">{auctionState.currentTeam.name}</div>
+                <div className="text-sm text-[#a0a0b8]">
+                  {auctionState.currentTeam.region} Region • Seed #{auctionState.currentTeam.seed}
                 </div>
+              </div>
+
+              <div className="glass-card rounded-2xl p-6 mb-6">
 
                 <div className="border-t border-[#2a2a38] pt-4 mb-4">
                   <div className="text-sm text-[#a0a0b8] mb-1">Current Bid</div>
@@ -550,7 +548,8 @@ export default function AuctionPage() {
                   </div>
                 )}
               </div>
-            ) : auctionState?.isActive && !auctionState.currentTeam ? (
+            </div>
+          ) : auctionState?.isActive && !auctionState.currentTeam ? (
               <div className="text-center py-8">
                 <div className="text-[#a0a0b8] mb-4">{teamsRemaining} teams remaining</div>
                 <button
@@ -569,7 +568,6 @@ export default function AuctionPage() {
                 }
               </div>
             )}
-          </div>
 
           {/* Auction Controls - Admin Only */}
           {currentUser?.role === 'admin' && (
@@ -631,7 +629,7 @@ export default function AuctionPage() {
               </div>
             </div>
           )}
-        </div>
+          </div>
 
         {/* Chat & Bidding */}
         <div className="lg:col-span-2">

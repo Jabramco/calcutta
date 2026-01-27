@@ -60,7 +60,7 @@ export async function POST(request: Request) {
         currentBid: 0,
         currentBidder: null,
         bids: [],
-        lastBidTime: Date.now() // Start timer immediately when team is selected
+        lastBidTime: null // Timer starts after first bid
       }
 
       return NextResponse.json({ success: true, state: auctionState })
@@ -136,7 +136,7 @@ export async function POST(request: Request) {
           currentBid: 0,
           currentBidder: null,
           bids: [],
-          lastBidTime: Date.now() // Start timer immediately when team is selected
+          lastBidTime: null // Timer starts after first bid
         }
       } else {
         // Auction complete

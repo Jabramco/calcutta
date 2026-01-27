@@ -111,20 +111,19 @@ export default function AuctionPage() {
       return
     }
 
-    // If there's no lastBidTime yet (team just selected, no bids), don't show warnings
-    // but still run the timer so users know bidding is open
-    if (!auctionState.lastBidTime) {
-      setCountdown(null)
-      setWarningState('none')
-      return
-    }
-
     // Reset warning tracker if it's a new team
     if (currentTeamIdRef.current !== auctionState.currentTeam.id) {
       currentTeamIdRef.current = auctionState.currentTeam.id
       lastAnnouncedWarning.current = 'none'
       setWarningState('none')
       hasAutoSold.current = false
+    }
+
+    // If there's no lastBidTime yet (team just selected, no bids), show "waiting for bids"
+    if (!auctionState.lastBidTime) {
+      setCountdown(null)
+      setWarningState('none')
+      return
     }
 
     const now = Date.now()
@@ -134,7 +133,7 @@ export default function AuctionPage() {
 
     // Determine warning state and announce ONCE per state change
     if (elapsed >= COUNTDOWN_INTERVAL * 3) {
-      // Auto-sell after "going twice" - but only if there's a valid bid
+      // Auto-sell after "going twice" - only if there's a valid bid
       if (!hasAutoSold.current && auctionState.currentBid > 0 && auctionState.currentBidder) {
         autoSoldTeam()
       }
@@ -513,6 +512,14 @@ export default function AuctionPage() {
                         {warningState === 'twice' ? 'Going TWICE!' : 'Going once!'}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {!auctionState.lastBidTime && (
+                  <div className="p-3 rounded-lg text-center glass-input">
+                    <div className="text-sm text-[#00ceb8] font-medium">
+                      ⏳ Waiting for first bid...
+                    </div>
                   </div>
                 )}
               </div>

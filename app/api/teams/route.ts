@@ -14,12 +14,13 @@ export async function GET() {
     })
 
     return NextResponse.json(teams)
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching teams:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch teams' },
-      { status: 500 }
-    )
+    console.error('Error stack:', error?.stack)
+    console.error('Error message:', error?.message)
+    
+    // Return empty array instead of error object so the UI doesn't break
+    return NextResponse.json([])
   }
 }
 

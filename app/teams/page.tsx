@@ -3,12 +3,17 @@
 import { useEffect, useState } from 'react'
 import { TeamWithOwner, Owner } from '@/lib/types'
 import { formatCurrency } from '@/lib/calculations'
+import { useAuth } from '@/lib/hooks/useAuth'
 
 export default function TeamsPage() {
+  const { user: currentUser } = useAuth()
   const [teams, setTeams] = useState<TeamWithOwner[]>([])
   const [owners, setOwners] = useState<Owner[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedRegion, setExpandedRegion] = useState<string | null>('South')
+  const [tournamentYear, setTournamentYear] = useState('2024')
+  const [importing, setImporting] = useState(false)
+  const [importMessage, setImportMessage] = useState('')
 
   useEffect(() => {
     async function fetchData() {
@@ -95,6 +100,73 @@ export default function TeamsPage() {
     document.body.removeChild(link)
   }
 
+  const importTournamentResults = async () => {
+    if (!tournamentYear || isNaN(Number(tournamentYear))) {
+      alert('Please enter a valid year')
+      return
+    }
+
+    setImporting(true)
+    setImportMessage('')
+
+    try {
+      const response = await fetch('/api/import-tournament', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year: tournamentYear })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setImportMessage(`✓ Imported ${data.tournamentGames} tournament games. Updated ${data.updatedTeams} teams.`)
+        // Refresh teams data
+        const teamsRes = await fetch('/api/teams', { cache: 'no-store' })
+        const teamsData = await teamsRes.json()
+        setTeams(teamsData)
+      } else {
+        setImportMessage(`✗ ${data.error || 'Failed to import tournament data'}`)
+      }
+    } catch (error) {
+      console.error('Error importing tournament results:', error)
+      setImportMessage('✗ Failed to import tournament data')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const resetTournamentResults = async () => {
+    if (!confirm('Are you sure you want to reset all tournament results? This will remove all win checkboxes.')) {
+      return
+    }
+
+    setImporting(true)
+    setImportMessage('')
+
+    try {
+      const response = await fetch('/api/import-tournament', {
+        method: 'DELETE'
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setImportMessage('✓ All tournament results have been reset')
+        // Refresh teams data
+        const teamsRes = await fetch('/api/teams', { cache: 'no-store' })
+        const teamsData = await teamsRes.json()
+        setTeams(teamsData)
+      } else {
+        setImportMessage(`✗ ${data.error || 'Failed to reset tournament results'}`)
+      }
+    } catch (error) {
+      console.error('Error resetting tournament results:', error)
+      setImportMessage('✗ Failed to reset tournament results')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -113,15 +185,69 @@ export default function TeamsPage() {
       </div>
 
       <div className="container mx-auto px-4 py-8 glass-content">
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <h1 className="text-3xl font-bold text-white">Teams</h1>
-        <button
-          onClick={downloadCSV}
-          className="btn-gradient-primary px-6 py-2 rounded-lg font-medium transition-all"
-        >
-          Download CSV
-        </button>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
+            onClick={downloadCSV}
+            className="btn-gradient-primary px-6 py-2 rounded-lg font-medium transition-all"
+          >
+            Download CSV
+          </button>
+        </div>
       </div>
+
+      {/* Admin Tournament Import Controls */}
+      {currentUser?.role === 'admin' && (
+        <div className="glass-card p-6 rounded-2xl mb-6">
+          <h2 className="text-xl font-semibold text-white mb-4">Import Tournament Results</h2>
+          <p className="text-sm text-[#a0a0b8] mb-4">
+            Import real tournament data from NCAA API to automatically update team wins for each round.
+          </p>
+          
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+            <div className="flex-1">
+              <label className="block text-sm text-[#a0a0b8] mb-2">Tournament Year</label>
+              <input
+                type="number"
+                value={tournamentYear}
+                onChange={(e) => setTournamentYear(e.target.value)}
+                placeholder="2024"
+                min="2010"
+                max="2030"
+                className="w-full px-4 py-2 bg-[#1c1c28] border border-[#2a2a38] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#00ceb8] focus:border-transparent transition-all"
+                disabled={importing}
+              />
+            </div>
+            
+            <button
+              onClick={importTournamentResults}
+              disabled={importing}
+              className="btn-gradient-primary px-6 py-2 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              {importing ? 'Importing...' : 'Import Results'}
+            </button>
+            
+            <button
+              onClick={resetTournamentResults}
+              disabled={importing}
+              className="btn-gradient-danger-outline px-6 py-2 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              Reset All
+            </button>
+          </div>
+
+          {importMessage && (
+            <div className={`mt-4 p-3 rounded-lg text-sm ${
+              importMessage.startsWith('✓') 
+                ? 'bg-[#2dce89]/20 text-[#2dce89]' 
+                : 'bg-[#f5365c]/20 text-[#f5365c]'
+            }`}>
+              {importMessage}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="space-y-4">
         {regions.map(region => {

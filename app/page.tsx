@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { formatCurrency, formatROI } from '@/lib/calculations'
 import { LeaderboardEntry, GlobalStats } from '@/lib/types'
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [stats, setStats] = useState<GlobalStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -150,19 +152,20 @@ export default function DashboardPage() {
               </thead>
               <tbody className="divide-y divide-[#2a2a38]">
                 {sortedLeaderboard.map((entry, index) => (
-                  <tr key={entry.owner.id} className="hover:bg-[#1c1c28] transition-colors">
+                  <tr 
+                    key={entry.owner.id} 
+                    onClick={() => router.push(`/owners/${entry.owner.id}`)}
+                    className="hover:bg-[#1c1c28] hover:shadow-lg transition-all cursor-pointer"
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <span className="text-sm font-bold text-white">#{index + 1}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <Link 
-                        href={`/owners/${entry.owner.id}`} 
-                        className="text-[#00ceb8] hover:text-[#00b5a1] font-medium transition-colors"
-                      >
+                      <span className="text-[#00ceb8] font-medium">
                         {entry.owner.name}
-                      </Link>
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
                       {entry.teamsCount}

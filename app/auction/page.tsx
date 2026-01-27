@@ -97,7 +97,7 @@ export default function AuctionPage() {
   useEffect(() => {
     // Only scroll if we're initialized and there are messages
     if (isInitialized && chatMessages.length > 0) {
-      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
     }
   }, [chatMessages, isInitialized])
 

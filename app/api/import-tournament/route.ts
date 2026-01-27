@@ -1,40 +1,45 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-// NCAA API endpoint
-const NCAA_API_BASE = 'https://ncaa-api.henrygd.me'
+// NCAA API endpoint - using the correct structure
+const NCAA_API_BASE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball'
 
-interface NCAATournamentGame {
-  game: {
-    gameID: string
-    gameState: string
-    home: {
-      names: {
-        full: string
-      }
-      winner: boolean
-      seed: string
+interface ESPNGame {
+  id: string
+  status: {
+    type: {
+      completed: boolean
     }
-    away: {
-      names: {
-        full: string
-      }
-      winner: boolean
-      seed: string
-    }
-    bracketRound: string
-    startDate: string
   }
+  competitions: Array<{
+    competitors: Array<{
+      team: {
+        displayName: string
+        shortDisplayName: string
+      }
+      winner: boolean
+      seed?: number
+    }>
+    notes?: Array<{
+      headline?: string
+    }>
+  }>
 }
 
-// Map NCAA API round names to our database fields
+// Map round names to our database fields
 const ROUND_MAP: Record<string, keyof typeof prisma.team.fields> = {
-  '1': 'round64',
-  '2': 'round32',
-  '3': 'sweet16',
-  '4': 'elite8',
-  '5': 'final4',
-  '6': 'championship'
+  'first round': 'round64',
+  'round of 64': 'round64',
+  'second round': 'round32',
+  'round of 32': 'round32',
+  'sweet 16': 'sweet16',
+  'sweet sixteen': 'sweet16',
+  'elite 8': 'elite8',
+  'elite eight': 'elite8',
+  'final four': 'final4',
+  'semifinals': 'final4',
+  'championship': 'championship',
+  'final': 'championship'
 }
 
 export async function POST(request: Request) {
@@ -48,33 +53,30 @@ export async function POST(request: Request) {
       )
     }
 
-    // Fetch March Madness games for the specified year
-    // The tournament runs from mid-March to early April
-    const marchGames = await fetch(`${NCAA_API_BASE}/scoreboard/basketball-men/d1/${year}/03`)
-    const aprilGames = await fetch(`${NCAA_API_BASE}/scoreboard/basketball-men/d1/${year}/04`)
+    console.log(`Fetching tournament data for ${year}...`)
 
-    if (!marchGames.ok || !aprilGames.ok) {
+    // Fetch tournament games - ESPN API groups tournament ID by year
+    // 2024 tournament would be around March-April 2024
+    const tournamentUrl = `${NCAA_API_BASE}/scoreboard?limit=100&dates=${year}0315-${year}0410&groups=100`
+    
+    console.log(`Fetching from: ${tournamentUrl}`)
+    
+    const response = await fetch(tournamentUrl)
+
+    if (!response.ok) {
+      console.error(`ESPN API returned status: ${response.status}`)
+      const errorText = await response.text()
+      console.error('Error response:', errorText)
       return NextResponse.json(
-        { error: 'Failed to fetch tournament data from NCAA API' },
+        { error: `Failed to fetch tournament data: ${response.status}` },
         { status: 500 }
       )
     }
 
-    const marchData = await marchGames.json()
-    const aprilData = await aprilGames.json()
+    const data = await response.json()
+    console.log(`Received ${data.events?.length || 0} events`)
 
-    // Combine all games
-    const allGames: NCAATournamentGame[] = [
-      ...(marchData.games || []),
-      ...(aprilData.games || [])
-    ]
-
-    // Filter for tournament games only (those with bracketRound)
-    const tournamentGames = allGames.filter(
-      (item) => item.game?.bracketRound && item.game.gameState === 'final'
-    )
-
-    if (tournamentGames.length === 0) {
+    if (!data.events || data.events.length === 0) {
       return NextResponse.json(
         { error: 'No tournament games found for this year' },
         { status: 404 }
@@ -88,22 +90,50 @@ export async function POST(request: Request) {
     // Get all teams from our database
     const teams = await prisma.team.findMany()
 
-    // Process each tournament game
-    for (const item of tournamentGames) {
-      const { game } = item
-      const roundKey = ROUND_MAP[game.bracketRound]
+    // Process each game
+    for (const event of data.events) {
+      if (!event.competitions?.[0]) continue
+      
+      const competition = event.competitions[0]
+      const isCompleted = event.status?.type?.completed
+      
+      if (!isCompleted) continue
 
+      // Check for tournament round info in notes
+      const notes = competition.notes || []
+      let roundName = ''
+      
+      for (const note of notes) {
+        if (note.headline) {
+          const headline = note.headline.toLowerCase()
+          for (const [key, field] of Object.entries(ROUND_MAP)) {
+            if (headline.includes(key)) {
+              roundName = key
+              break
+            }
+          }
+        }
+        if (roundName) break
+      }
+
+      if (!roundName) continue
+
+      const roundKey = ROUND_MAP[roundName]
       if (!roundKey) continue
 
       // Find the winning team
-      const winnerName = game.home.winner ? game.home.names.full : game.away.names.full
+      const competitors = competition.competitors || []
+      const winner = competitors.find(c => c.winner)
+      
+      if (!winner) continue
 
-      // Try to match with our teams (case-insensitive, partial match)
+      const winnerName = winner.team.displayName || winner.team.shortDisplayName
+
+      // Try to match with our teams
       const matchedTeam = teams.find((team) => {
         const teamNameLower = team.name.toLowerCase()
         const winnerNameLower = winnerName.toLowerCase()
         
-        // Check for exact match or if one contains the other
         return (
           teamNameLower === winnerNameLower ||
           teamNameLower.includes(winnerNameLower) ||
@@ -119,19 +149,23 @@ export async function POST(request: Request) {
         })
 
         updatedTeams++
-        updates.push(`${matchedTeam.name} won ${roundKey}`)
+        updates.push(`${matchedTeam.name} won ${roundKey} (${roundName})`)
+        console.log(`Updated: ${matchedTeam.name} - ${roundKey}`)
+      } else {
+        console.log(`No match found for: ${winnerName} in round: ${roundName}`)
       }
     }
 
     return NextResponse.json({
       success: true,
       message: `Successfully imported ${year} tournament results`,
-      tournamentGames: tournamentGames.length,
+      tournamentGames: data.events.length,
       updatedTeams,
-      updates
+      updates: updates.slice(0, 20) // Limit to first 20 for display
     })
   } catch (error: any) {
     console.error('Error importing tournament data:', error)
+    console.error('Error stack:', error?.stack)
     return NextResponse.json(
       { error: 'Failed to import tournament data', details: error?.message },
       { status: 500 }

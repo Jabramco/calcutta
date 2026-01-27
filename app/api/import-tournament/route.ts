@@ -60,7 +60,6 @@ export async function POST(request: Request) {
     console.log(`Fetching tournament data for ${year}...`)
 
     // Fetch tournament games - ESPN API groups tournament ID by year
-    // 2024 tournament would be around March-April 2024
     const tournamentUrl = `${NCAA_API_BASE}/scoreboard?limit=100&dates=${year}0315-${year}0410&groups=100`
     
     console.log(`Fetching from: ${tournamentUrl}`)
@@ -87,8 +86,15 @@ export async function POST(request: Request) {
       )
     }
 
-    // Track the deepest round each team reached
-    const teamProgress: Map<string, string> = new Map()
+    // Filter and sort tournament games by date
+    const tournamentGames = data.events
+      .filter((event: any) => event.season?.type === 3 && event.status?.type?.completed)
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+    console.log(`Found ${tournamentGames.length} completed tournament games`)
+
+    // Track winners at each stage to build the bracket
+    const teamWins: Map<string, Set<string>> = new Map() // team name -> set of rounds won
     
     // Round order for progression
     const roundOrder = ['round64', 'round32', 'sweet16', 'elite8', 'final4', 'championship']
@@ -96,135 +102,84 @@ export async function POST(request: Request) {
     // Get all teams from our database
     const teams = await prisma.team.findMany()
 
-    console.log('Starting to process games...')
+    // Process games and count wins per team
+    const teamGameCount: Map<string, number> = new Map()
 
-    // Process each game to determine team progress
-    for (const event of data.events) {
+    for (const event of tournamentGames) {
       if (!event.competitions?.[0]) continue
       
       const competition = event.competitions[0]
-      const isCompleted = event.status?.type?.completed
-      
-      if (!isCompleted) continue
-
-      // Check if this is actually a tournament game (postseason type 3)
-      const isTournamentGame = event.season?.type === 3
-      if (!isTournamentGame) {
-        console.log(`Skipping non-tournament: ${event.name}`)
-        continue
-      }
-
-      // Debug: log the event to see what data we have
-      console.log(`\nProcessing game: ${event.name}`)
-      console.log(`  Date: ${event.date}`)
-      if (competition.notes) {
-        console.log(`  Notes: ${JSON.stringify(competition.notes)}`)
-      }
-
-      // Identify the round - check multiple places
-      let roundName = ''
-      let roundKey = ''
-      
-      // First check notes
-      const notes = competition.notes || []
-      for (const note of notes) {
-        if (note.headline) {
-          const headline = note.headline.toLowerCase()
-          console.log(`  Checking note headline: ${headline}`)
-          for (const [key] of Object.entries(ROUND_MAP)) {
-            if (headline.includes(key)) {
-              roundName = key
-              roundKey = ROUND_MAP[key]
-              break
-            }
-          }
-        }
-        if (roundKey) break
-      }
-
-      // Then check event name
-      if (!roundKey && event.name) {
-        const eventName = event.name.toLowerCase()
-        console.log(`  Checking event name: ${eventName}`)
-        for (const [key] of Object.entries(ROUND_MAP)) {
-          if (eventName.includes(key)) {
-            roundName = key
-            roundKey = ROUND_MAP[key]
-            break
-          }
-        }
-      }
-
-      if (!roundKey) {
-        console.log(`  ❌ Could not identify round for: ${event.name}`)
-        continue
-      }
-
-      console.log(`  ✓ Identified as: ${roundKey} (${roundName})`)
-
-      // Get both teams and the winner
       const competitors = competition.competitors || []
-      if (competitors.length !== 2) {
-        console.log(`  ❌ Invalid number of competitors: ${competitors.length}`)
-        continue
-      }
+      
+      if (competitors.length !== 2) continue
 
       const winner = competitors.find((c: any) => c.winner)
-      const loser = competitors.find((c: any) => !c.winner)
-      
-      if (!winner || !loser) {
-        console.log(`  ❌ Could not identify winner/loser`)
-        continue
-      }
+      if (!winner) continue
 
       const winnerName = winner.team.displayName || winner.team.shortDisplayName
-      const loserName = loser.team.displayName || loser.team.shortDisplayName
-
-      console.log(`  Winner: ${winnerName}`)
-      console.log(`  Loser: ${loserName}`)
-
-      // Winner WON this round - mark this as their latest win
-      const currentRoundIndex = roundOrder.indexOf(roundKey)
-      const existingRoundIndex = teamProgress.has(winnerName) 
-        ? roundOrder.indexOf(teamProgress.get(winnerName)!) 
-        : -1
       
-      // Update if this is a deeper round
-      if (currentRoundIndex > existingRoundIndex) {
-        teamProgress.set(winnerName, roundKey)
-        console.log(`  → ${winnerName} WON ${roundKey}`)
-      }
+      // Count games won
+      const currentCount = teamGameCount.get(winnerName) || 0
+      teamGameCount.set(winnerName, currentCount + 1)
+    }
 
-      // Loser LOST this round, so their last win was the previous round
-      if (currentRoundIndex > 0) {
-        const previousRound = roundOrder[currentRoundIndex - 1]
-        const existingLoserIndex = teamProgress.has(loserName) 
-          ? roundOrder.indexOf(teamProgress.get(loserName)!) 
-          : -1
-        
-        // Only update if they haven't progressed further already
-        if (currentRoundIndex - 1 > existingLoserIndex) {
-          teamProgress.set(loserName, previousRound)
-          console.log(`  → ${loserName} last win: ${previousRound}`)
-        }
-      } else {
-        // Lost in round64 means they won nothing
-        if (!teamProgress.has(loserName)) {
-          console.log(`  → ${loserName} eliminated in first round (no wins)`)
-        }
+    console.log('\n=== Game Win Counts ===')
+    // Convert to array and sort by wins
+    const sortedTeams = Array.from(teamGameCount.entries())
+      .sort((a, b) => b[1] - a[1])
+    
+    for (const [team, wins] of sortedTeams) {
+      console.log(`${team}: ${wins} wins`)
+    }
+
+    // Map wins to rounds:
+    // 1 win = won round64 only
+    // 2 wins = won round64 + round32
+    // 3 wins = won round64 + round32 + sweet16
+    // 4 wins = won round64 + round32 + sweet16 + elite8
+    // 5 wins = won round64 + round32 + sweet16 + elite8 + final4
+    // 6 wins = won all rounds including championship
+    for (const [teamName, winCount] of teamGameCount.entries()) {
+      const rounds = new Set<string>()
+      
+      // Mark rounds based on number of wins
+      for (let i = 0; i < Math.min(winCount, 6); i++) {
+        rounds.add(roundOrder[i])
+      }
+      
+      if (rounds.size > 0) {
+        teamWins.set(teamName, rounds)
       }
     }
 
-    console.log(`\n=== Final Team Progress ===`)
-    for (const [team, round] of teamProgress.entries()) {
-      console.log(`${team}: ${round}`)
+    console.log('\n=== Final Team Progress ===')
+    // Find the champion (6 wins)
+    let championName = ''
+    for (const [team, rounds] of teamWins.entries()) {
+      const roundsList = Array.from(rounds).sort((a, b) => 
+        roundOrder.indexOf(a) - roundOrder.indexOf(b)
+      )
+      console.log(`${team}: ${roundsList.join(', ')}`)
+      
+      if (rounds.has('championship')) {
+        championName = team
+        console.log(`  *** CHAMPION ***`)
+      }
     }
 
-    // Now update our database teams based on how far they progressed
+    // Verify only one champion
+    const championCount = Array.from(teamWins.values())
+      .filter(rounds => rounds.has('championship')).length
+    
+    if (championCount !== 1) {
+      console.warn(`WARNING: Found ${championCount} champions, expected exactly 1`)
+    }
+
+    // Now update our database teams
     let updatedTeams = 0
     const updates: string[] = []
 
-    for (const [apiTeamName, deepestRound] of teamProgress.entries()) {
+    for (const [apiTeamName, wonRounds] of teamWins.entries()) {
       // Try to match with our teams
       const matchedTeam = teams.find((team) => {
         const teamNameLower = team.name.toLowerCase()
@@ -238,20 +193,13 @@ export async function POST(request: Request) {
       })
 
       if (matchedTeam) {
-        // Mark all rounds they WON (up to and including their deepest round won)
-        const deepestIndex = roundOrder.indexOf(deepestRound)
         const updateData: any = {
-          round64: false,
-          round32: false,
-          sweet16: false,
-          elite8: false,
-          final4: false,
-          championship: false
-        }
-        
-        // Mark all rounds they actually won
-        for (let i = 0; i <= deepestIndex; i++) {
-          updateData[roundOrder[i]] = true
+          round64: wonRounds.has('round64'),
+          round32: wonRounds.has('round32'),
+          sweet16: wonRounds.has('sweet16'),
+          elite8: wonRounds.has('elite8'),
+          final4: wonRounds.has('final4'),
+          championship: wonRounds.has('championship')
         }
 
         // Update the team
@@ -261,8 +209,9 @@ export async function POST(request: Request) {
         })
 
         updatedTeams++
-        updates.push(`${matchedTeam.name} won through ${deepestRound}`)
-        console.log(`Updated: ${matchedTeam.name} - won through ${deepestRound}`)
+        const winCount = wonRounds.size
+        updates.push(`${matchedTeam.name}: ${winCount} win${winCount !== 1 ? 's' : ''}`)
+        console.log(`Updated: ${matchedTeam.name} - ${wonRounds.size} tournament wins`)
       } else {
         console.log(`No match found for: ${apiTeamName}`)
       }
@@ -271,9 +220,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: `Successfully imported ${year} tournament results`,
-      tournamentGames: data.events.length,
+      champion: championName,
+      tournamentGames: tournamentGames.length,
       updatedTeams,
-      updates: updates.slice(0, 20) // Limit to first 20 for display
+      updates: updates.slice(0, 20)
     })
   } catch (error: any) {
     console.error('Error importing tournament data:', error)

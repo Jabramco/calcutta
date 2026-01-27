@@ -187,7 +187,7 @@ export default function AuctionPage() {
       const response = await fetch('/api/auction')
       const data = await response.json()
       
-      // Check if new team was announced - only announce if we haven't already announced this team ID
+      // Check if new team was announced - only announce if it's a truly new team ID
       if (data.currentTeam && data.currentTeam.id !== lastAnnouncedTeamId.current) {
         lastAnnouncedTeamId.current = data.currentTeam.id
         currentTeamIdRef.current = data.currentTeam.id

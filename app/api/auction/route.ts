@@ -50,10 +50,12 @@ export async function GET() {
       ...state,
       currentTeam
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching auction state:', error)
+    console.error('Error stack:', error?.stack)
+    console.error('Error message:', error?.message)
     return NextResponse.json(
-      { error: 'Failed to fetch auction state' },
+      { error: 'Failed to fetch auction state', details: error?.message },
       { status: 500 }
     )
   }
@@ -242,10 +244,12 @@ export async function POST(request: Request) {
       { error: 'Invalid action' },
       { status: 400 }
     )
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating auction state:', error)
+    console.error('Error stack:', error?.stack)
+    console.error('Error message:', error?.message)
     return NextResponse.json(
-      { error: 'Failed to update auction state' },
+      { error: 'Failed to update auction state', details: error?.message },
       { status: 500 }
     )
   }

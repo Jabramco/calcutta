@@ -6,6 +6,10 @@ const NCAA_API_BASE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/
 
 interface ESPNGame {
   id: string
+  name?: string
+  season?: {
+    type?: number
+  }
   status: {
     type: {
       completed: boolean
@@ -83,9 +87,10 @@ export async function POST(request: Request) {
       )
     }
 
-    // Track updates
+    // Track updates and prevent duplicate championships
     let updatedTeams = 0
     const updates: string[] = []
+    let championshipWinner: string | null = null
 
     // Get all teams from our database
     const teams = await prisma.team.findMany()
@@ -98,6 +103,13 @@ export async function POST(request: Request) {
       const isCompleted = event.status?.type?.completed
       
       if (!isCompleted) continue
+
+      // Check if this is actually a tournament game
+      const isTournamentGame = event.season?.type === 3 // Type 3 is postseason
+      if (!isTournamentGame) {
+        console.log(`Skipping non-tournament game: ${event.name}`)
+        continue
+      }
 
       // Check for tournament round info in notes
       const notes = competition.notes || []
@@ -116,10 +128,30 @@ export async function POST(request: Request) {
         if (roundName) break
       }
 
-      if (!roundName) continue
+      // If no round found in notes, try the event name
+      if (!roundName && event.name) {
+        const eventName = event.name.toLowerCase()
+        for (const [key, field] of Object.entries(ROUND_MAP)) {
+          if (eventName.includes(key)) {
+            roundName = key
+            break
+          }
+        }
+      }
+
+      if (!roundName) {
+        console.log(`No round identified for: ${event.name}`)
+        continue
+      }
 
       const roundKey = ROUND_MAP[roundName]
       if (!roundKey) continue
+
+      // Special handling for championship - only allow one winner
+      if (roundKey === 'championship' && championshipWinner) {
+        console.log(`Championship already assigned to ${championshipWinner}, skipping`)
+        continue
+      }
 
       // Find the winning team
       const competitors = competition.competitors || []
@@ -151,6 +183,11 @@ export async function POST(request: Request) {
         updatedTeams++
         updates.push(`${matchedTeam.name} won ${roundKey} (${roundName})`)
         console.log(`Updated: ${matchedTeam.name} - ${roundKey}`)
+        
+        // Track championship winner
+        if (roundKey === 'championship') {
+          championshipWinner = matchedTeam.name
+        }
       } else {
         console.log(`No match found for: ${winnerName} in round: ${roundName}`)
       }

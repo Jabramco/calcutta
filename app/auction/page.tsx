@@ -126,46 +126,51 @@ export default function AuctionPage() {
       return
     }
 
-    const now = Date.now()
-    const elapsed = now - auctionState.lastBidTime
-    const remaining = COUNTDOWN_INTERVAL - (elapsed % COUNTDOWN_INTERVAL)
-    setCountdown(remaining)
+    // Set up interval to update countdown every 100ms
+    const interval = setInterval(() => {
+      const now = Date.now()
+      const elapsed = now - auctionState.lastBidTime!
+      const remaining = COUNTDOWN_INTERVAL - (elapsed % COUNTDOWN_INTERVAL)
+      setCountdown(remaining)
 
-    // Determine warning state and announce ONCE per state change
-    if (elapsed >= COUNTDOWN_INTERVAL * 3) {
-      // Auto-sell after "going twice" - only if there's a valid bid
-      if (!hasAutoSold.current && auctionState.currentBid > 0 && auctionState.currentBidder) {
-        autoSoldTeam()
+      // Determine warning state and announce ONCE per state change
+      if (elapsed >= COUNTDOWN_INTERVAL * 3) {
+        // Auto-sell after "going twice" - only if there's a valid bid
+        if (!hasAutoSold.current && auctionState.currentBid > 0 && auctionState.currentBidder) {
+          autoSoldTeam()
+        }
+      } else if (elapsed >= COUNTDOWN_INTERVAL * 2) {
+        if (lastAnnouncedWarning.current !== 'twice') {
+          setWarningState('twice')
+          lastAnnouncedWarning.current = 'twice'
+          addChatMessage({
+            type: 'warning',
+            message: 'Going TWICE!',
+            timestamp: Date.now()
+          })
+        }
+      } else if (elapsed >= COUNTDOWN_INTERVAL) {
+        if (lastAnnouncedWarning.current === 'none') {
+          setWarningState('once')
+          lastAnnouncedWarning.current = 'once'
+          addChatMessage({
+            type: 'warning',
+            message: 'Going once!',
+            timestamp: Date.now()
+          })
+        }
+      } else {
+        // Reset state if time goes back (new bid placed)
+        if (lastAnnouncedWarning.current !== 'none') {
+          setWarningState('none')
+          lastAnnouncedWarning.current = 'none'
+          hasAutoSold.current = false
+        }
       }
-    } else if (elapsed >= COUNTDOWN_INTERVAL * 2) {
-      if (lastAnnouncedWarning.current !== 'twice') {
-        setWarningState('twice')
-        lastAnnouncedWarning.current = 'twice'
-        addChatMessage({
-          type: 'warning',
-          message: '⚠️ Going TWICE!',
-          timestamp: Date.now()
-        })
-      }
-    } else if (elapsed >= COUNTDOWN_INTERVAL) {
-      if (lastAnnouncedWarning.current === 'none') {
-        setWarningState('once')
-        lastAnnouncedWarning.current = 'once'
-        addChatMessage({
-          type: 'warning',
-          message: '⚠️ Going once!',
-          timestamp: Date.now()
-        })
-      }
-    } else {
-      // Reset state if time goes back (new bid placed)
-      if (lastAnnouncedWarning.current !== 'none') {
-        setWarningState('none')
-        lastAnnouncedWarning.current = 'none'
-        hasAutoSold.current = false
-      }
-    }
-  }, [auctionState?.lastBidTime, auctionState?.currentTeam, countdown])
+    }, 100) // Update every 100ms
+
+    return () => clearInterval(interval)
+  }, [auctionState?.lastBidTime, auctionState?.currentTeam, auctionState?.isActive])
 
   const fetchStats = async () => {
     try {
@@ -273,7 +278,7 @@ export default function AuctionPage() {
       if (response.ok) {
         addChatMessage({
           type: 'system',
-          message: '🎲 Selecting next team randomly...',
+          message: 'Selecting next team randomly...',
           timestamp: Date.now()
         })
         await fetchAuctionState()
@@ -341,7 +346,7 @@ export default function AuctionPage() {
         const data = await response.json()
         addChatMessage({
           type: 'sold',
-          message: `🎊 SOLD to ${auctionState?.currentBidder} for ${formatCurrency(auctionState?.currentBid || 0)}!`,
+          message: `SOLD to ${auctionState?.currentBidder} for ${formatCurrency(auctionState?.currentBid || 0)}!`,
           timestamp: Date.now()
         })
         
@@ -354,13 +359,13 @@ export default function AuctionPage() {
         if (data.remainingTeams > 0) {
           addChatMessage({
             type: 'system',
-            message: `📊 ${data.remainingTeams} teams remaining. Next team coming up...`,
+            message: `${data.remainingTeams} teams remaining. Next team coming up...`,
             timestamp: Date.now()
           })
         } else {
           addChatMessage({
             type: 'system',
-            message: '🏁 Auction complete! All teams have been sold!',
+            message: 'Auction complete! All teams have been sold!',
             timestamp: Date.now()
           })
         }
@@ -432,7 +437,7 @@ export default function AuctionPage() {
         
         addChatMessage({
           type: 'system',
-          message: '🔄 Auction has been restarted! All data cleared.',
+          message: 'Auction has been restarted! All data cleared.',
           timestamp: Date.now()
         })
         
@@ -638,8 +643,8 @@ export default function AuctionPage() {
                     placeholder="Bid amount"
                     className="w-32 px-4 py-2 glass-input rounded-xl text-white placeholder-[#6a6a82] focus:outline-none focus:ring-2 focus:ring-[#00ceb8] focus:border-transparent transition-all"
                     disabled={!auctionState?.currentTeam}
-                    step="0.01"
-                    min={(auctionState?.currentBid || 0) + 0.01}
+                    step="5"
+                    min="5"
                     onKeyPress={(e) => e.key === 'Enter' && placeBid()}
                   />
                   <button

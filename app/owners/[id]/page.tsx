@@ -56,40 +56,46 @@ export default function OwnerPage() {
   const roi = totalInvestment > 0 ? ((totalPayout - totalInvestment) / totalInvestment) * 100 : 0
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <>
+      {/* Animated background orbs */}
+      <div className="glass-bg">
+        <div className="orb orb-1"></div>
+        <div className="orb orb-2"></div>
+        <div className="orb orb-3"></div>
+      </div>
+
+      <div className="container mx-auto px-4 py-8 glass-content">
       <Link href="/" className="text-[#00ceb8] hover:text-[#00b5a1] mb-6 inline-flex items-center gap-2 font-medium transition-colors">
         <span>←</span> Back to Dashboard
       </Link>
 
-      <div className="bg-[#15151e] rounded-2xl border border-[#2a2a38] p-6 mb-8">
-        <h1 className="text-3xl font-bold mb-6 text-white">{owner.name}</h1>
+      <h1 className="text-3xl font-bold mb-8 text-white">{owner.name}</h1>
         
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-[#1c1c28] border border-[#2a2a38] p-4 rounded-xl">
-            <div className="text-sm text-[#a0a0b8] mb-1">Total Teams</div>
-            <div className="text-3xl font-bold text-[#00ceb8]">{owner.teams.length}</div>
-          </div>
-          
-          <div className="bg-[#1c1c28] border border-[#2a2a38] p-4 rounded-xl">
-            <div className="text-sm text-[#a0a0b8] mb-1">Total Investment</div>
-            <div className="text-3xl font-bold text-[#f5365c]">{formatCurrency(totalInvestment)}</div>
-          </div>
-          
-          <div className="bg-[#1c1c28] border border-[#2a2a38] p-4 rounded-xl">
-            <div className="text-sm text-[#a0a0b8] mb-1">Total Payout</div>
-            <div className="text-3xl font-bold text-[#2dce89]">{formatCurrency(totalPayout)}</div>
-          </div>
-          
-          <div className={`border p-4 rounded-xl ${roi >= 0 ? 'bg-[#2dce89]/10 border-[#2dce89]/30' : 'bg-[#f5365c]/10 border-[#f5365c]/30'}`}>
-            <div className="text-sm text-[#a0a0b8] mb-1">ROI</div>
-            <div className={`text-3xl font-bold ${roi >= 0 ? 'text-[#2dce89]' : 'text-[#f5365c]'}`}>
-              {formatROI(roi)}
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="glass-card p-6 rounded-2xl">
+          <div className="text-sm text-[#a0a0b8] mb-2 uppercase tracking-wider">Total Teams</div>
+          <div className="text-3xl font-bold text-[#00ceb8]">{owner.teams.length}</div>
+        </div>
+        
+        <div className="glass-card p-6 rounded-2xl">
+          <div className="text-sm text-[#a0a0b8] mb-2 uppercase tracking-wider">Total Investment</div>
+          <div className="text-3xl font-bold text-[#f5365c]">{formatCurrency(totalInvestment)}</div>
+        </div>
+        
+        <div className="glass-card p-6 rounded-2xl">
+          <div className="text-sm text-[#a0a0b8] mb-2 uppercase tracking-wider">Total Payout</div>
+          <div className="text-3xl font-bold text-[#2dce89]">{formatCurrency(totalPayout)}</div>
+        </div>
+        
+        <div className={`glass-card p-6 rounded-2xl ${roi >= 0 ? 'border-[#2dce89]/30' : 'border-[#f5365c]/30'}`}>
+          <div className="text-sm text-[#a0a0b8] mb-2 uppercase tracking-wider">ROI</div>
+          <div className={`text-3xl font-bold ${roi >= 0 ? 'text-[#2dce89]' : 'text-[#f5365c]'}`}>
+            {formatROI(roi)}
           </div>
         </div>
       </div>
 
-      <div className="bg-[#15151e] rounded-2xl border border-[#2a2a38] overflow-hidden">
+      <div className="glass-card rounded-2xl overflow-hidden">
         <div className="px-6 py-4 border-b border-[#2a2a38]">
           <h2 className="text-xl font-semibold text-white">Teams</h2>
         </div>
@@ -102,7 +108,7 @@ export default function OwnerPage() {
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead>
-                <tr className="bg-[#1c1c28] border-b border-[#2a2a38]">
+                <tr className="bg-[#1c1c28]/50 border-b border-[#2a2a38]">
                   <th className="px-6 py-3 text-left text-xs font-semibold text-[#a0a0b8] uppercase">Region</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-[#a0a0b8] uppercase">Seed</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-[#a0a0b8] uppercase">Team</th>
@@ -124,7 +130,7 @@ export default function OwnerPage() {
                   const teamPayout = calculateTeamPayout(team, totalPot)
 
                   return (
-                    <tr key={team.id} className="hover:bg-[#1c1c28] transition-colors">
+                    <tr key={team.id} className="hover:bg-[#1c1c28]/30 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
                         {team.region}
                       </td>
@@ -162,5 +168,6 @@ export default function OwnerPage() {
         )}
       </div>
     </div>
+    </>
   )
 }

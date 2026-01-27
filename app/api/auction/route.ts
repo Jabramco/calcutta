@@ -54,10 +54,17 @@ export async function GET() {
     console.error('Error fetching auction state:', error)
     console.error('Error stack:', error?.stack)
     console.error('Error message:', error?.message)
-    return NextResponse.json(
-      { error: 'Failed to fetch auction state', details: error?.message },
-      { status: 500 }
-    )
+    
+    // Return safe default values instead of 500 error
+    return NextResponse.json({
+      isActive: false,
+      currentTeamId: null,
+      currentBid: 0,
+      currentBidder: null,
+      bids: [],
+      lastBidTime: null,
+      currentTeam: null
+    })
   }
 }
 

@@ -490,7 +490,7 @@ export default function AuctionPage() {
         <h1 className="text-3xl font-bold text-white">Live Auction</h1>
         <div className="text-right">
           <div className="text-sm text-[#a0a0b8]">Current Prize Pool</div>
-          <div className="text-2xl font-bold text-[#00ceb8]">{formatCurrency(totalPot)}</div>
+          <div className="text-2xl font-bold text-[#00ceb8]">{formatCurrency(totalPot ?? 0)}</div>
         </div>
       </div>
 
@@ -512,7 +512,7 @@ export default function AuctionPage() {
                 <div className="mb-4">
                   <div className="text-sm text-[#a0a0b8] mb-1">Current Bid</div>
                   <div className="text-4xl font-bold text-[#00ceb8]">
-                    {formatCurrency(auctionState.currentBid)}
+                    {formatCurrency(auctionState.currentBid ?? 0)}
                   </div>
                   {auctionState.currentBidder && (
                     <div className="text-sm text-[#a0a0b8] mt-2">
@@ -521,7 +521,7 @@ export default function AuctionPage() {
                   )}
                 </div>
 
-                {countdown !== null && auctionState.currentBid > 0 && (
+                {countdown !== null && (auctionState.currentBid ?? 0) > 0 && (
                   <div className={`p-3 rounded-lg text-center ${
                     warningState === 'twice' ? 'bg-[#f5365c]/20 border border-[#f5365c]' :
                     warningState === 'once' ? 'bg-[#fb6340]/20 border border-[#fb6340]' :

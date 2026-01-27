@@ -24,6 +24,34 @@ async function resetAuction() {
   })
   console.log('✓ Reset all team assignments, costs, and round wins')
 
+  // Reset auction state
+  const existingState = await prisma.auctionState.findFirst()
+  if (existingState) {
+    await prisma.auctionState.update({
+      where: { id: existingState.id },
+      data: {
+        isActive: false,
+        currentTeamId: null,
+        currentBid: 0,
+        currentBidder: null,
+        bids: '[]',
+        lastBidTime: null
+      }
+    })
+  } else {
+    await prisma.auctionState.create({
+      data: {
+        isActive: false,
+        currentTeamId: null,
+        currentBid: 0,
+        currentBidder: null,
+        bids: '[]',
+        lastBidTime: null
+      }
+    })
+  }
+  console.log('✓ Reset auction state')
+
   // Verify
   const unassignedCount = await prisma.team.count({
     where: { ownerId: null }

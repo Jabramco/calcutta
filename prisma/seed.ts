@@ -41,6 +41,7 @@ async function main() {
   await prisma.owner.deleteMany()
   await prisma.settings.deleteMany()
   await prisma.user.deleteMany()
+  await prisma.auctionState.deleteMany()
 
   // Create admin user (you)
   const hashedPassword = await bcrypt.hash('admin123', 10) // Change this password!
@@ -52,6 +53,19 @@ async function main() {
     }
   })
   console.log('Created admin user (username: admin, password: admin123)')
+
+  // Create initial auction state
+  await prisma.auctionState.create({
+    data: {
+      isActive: false,
+      currentTeamId: null,
+      currentBid: 0,
+      currentBidder: null,
+      bids: '[]',
+      lastBidTime: null
+    }
+  })
+  console.log('Created initial auction state')
 
   // Create teams only (no owners assigned yet - that happens during auction)
   const teamsData = []

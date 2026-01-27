@@ -31,6 +31,33 @@ export async function POST() {
       }
     })
 
+    // Reset auction state
+    const existingState = await prisma.auctionState.findFirst()
+    if (existingState) {
+      await prisma.auctionState.update({
+        where: { id: existingState.id },
+        data: {
+          isActive: false,
+          currentTeamId: null,
+          currentBid: 0,
+          currentBidder: null,
+          bids: '[]',
+          lastBidTime: null
+        }
+      })
+    } else {
+      await prisma.auctionState.create({
+        data: {
+          isActive: false,
+          currentTeamId: null,
+          currentBid: 0,
+          currentBidder: null,
+          bids: '[]',
+          lastBidTime: null
+        }
+      })
+    }
+
     return NextResponse.json({ 
       success: true,
       message: 'Auction restarted successfully'

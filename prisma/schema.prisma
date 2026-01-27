@@ -51,3 +51,14 @@ model Settings {
   key   String @unique
   value String
 }
+
+model AuctionState {
+  id             Int      @id @default(autoincrement())
+  isActive       Boolean  @default(false)
+  currentTeamId  Int?
+  currentBid     Float    @default(0)
+  currentBidder  String?
+  bids           String   @default("[]") // JSON string of bids array
+  lastBidTime    BigInt?
+  updatedAt      DateTime @updatedAt
+}

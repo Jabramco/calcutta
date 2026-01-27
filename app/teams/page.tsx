@@ -51,6 +51,50 @@ export default function TeamsPage() {
     return acc
   }, {} as Record<string, TeamWithOwner[]>)
 
+  const downloadCSV = () => {
+    // Create CSV header
+    const headers = ['Region', 'Seed', 'Team', 'Owner', 'Cost', 'Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8', 'Final 4', 'Championship']
+    
+    // Create CSV rows
+    const rows = teams
+      .sort((a, b) => {
+        // Sort by region, then by seed
+        const regionOrder = regions.indexOf(a.region) - regions.indexOf(b.region)
+        if (regionOrder !== 0) return regionOrder
+        return a.seed - b.seed
+      })
+      .map(team => [
+        team.region,
+        team.seed,
+        team.name,
+        team.owner?.name || 'Unassigned',
+        team.cost,
+        team.round64 ? 'Yes' : 'No',
+        team.round32 ? 'Yes' : 'No',
+        team.sweet16 ? 'Yes' : 'No',
+        team.elite8 ? 'Yes' : 'No',
+        team.final4 ? 'Yes' : 'No',
+        team.championship ? 'Yes' : 'No'
+      ])
+
+    // Combine headers and rows
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n')
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `calcutta-teams-${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -70,7 +114,15 @@ export default function TeamsPage() {
       </div>
 
       <div className="container mx-auto px-4 py-8 glass-content">
-      <h1 className="text-3xl font-bold mb-8 text-white">Teams</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-white">Teams</h1>
+        <button
+          onClick={downloadCSV}
+          className="btn-gradient-primary px-6 py-2 rounded-lg font-medium transition-all"
+        >
+          Download CSV
+        </button>
+      </div>
 
       <div className="space-y-4">
         {regions.map(region => {

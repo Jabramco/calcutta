@@ -183,7 +183,7 @@ export async function POST(request: Request) {
       console.log(`  Winner: ${winnerName}`)
       console.log(`  Loser: ${loserName}`)
 
-      // Winner advances to this round
+      // Winner WON this round - mark this as their latest win
       const currentRoundIndex = roundOrder.indexOf(roundKey)
       const existingRoundIndex = teamProgress.has(winnerName) 
         ? roundOrder.indexOf(teamProgress.get(winnerName)!) 
@@ -192,20 +192,25 @@ export async function POST(request: Request) {
       // Update if this is a deeper round
       if (currentRoundIndex > existingRoundIndex) {
         teamProgress.set(winnerName, roundKey)
-        console.log(`  → ${winnerName} reached ${roundKey}`)
+        console.log(`  → ${winnerName} WON ${roundKey}`)
       }
 
-      // Loser is eliminated at the PREVIOUS round (they lost this one)
+      // Loser LOST this round, so their last win was the previous round
       if (currentRoundIndex > 0) {
         const previousRound = roundOrder[currentRoundIndex - 1]
         const existingLoserIndex = teamProgress.has(loserName) 
           ? roundOrder.indexOf(teamProgress.get(loserName)!) 
           : -1
         
-        // Only update if they haven't progressed further elsewhere
+        // Only update if they haven't progressed further already
         if (currentRoundIndex - 1 > existingLoserIndex) {
           teamProgress.set(loserName, previousRound)
-          console.log(`  → ${loserName} eliminated after ${previousRound}`)
+          console.log(`  → ${loserName} last win: ${previousRound}`)
+        }
+      } else {
+        // Lost in round64 means they won nothing
+        if (!teamProgress.has(loserName)) {
+          console.log(`  → ${loserName} eliminated in first round (no wins)`)
         }
       }
     }
@@ -233,7 +238,7 @@ export async function POST(request: Request) {
       })
 
       if (matchedTeam) {
-        // Mark all rounds up to and including their deepest round
+        // Mark all rounds they WON (up to and including their deepest round won)
         const deepestIndex = roundOrder.indexOf(deepestRound)
         const updateData: any = {
           round64: false,
@@ -244,7 +249,7 @@ export async function POST(request: Request) {
           championship: false
         }
         
-        // Check all rounds up to where they were eliminated
+        // Mark all rounds they actually won
         for (let i = 0; i <= deepestIndex; i++) {
           updateData[roundOrder[i]] = true
         }
@@ -256,8 +261,8 @@ export async function POST(request: Request) {
         })
 
         updatedTeams++
-        updates.push(`${matchedTeam.name} reached ${deepestRound}`)
-        console.log(`Updated: ${matchedTeam.name} - reached ${deepestRound}`)
+        updates.push(`${matchedTeam.name} won through ${deepestRound}`)
+        console.log(`Updated: ${matchedTeam.name} - won through ${deepestRound}`)
       } else {
         console.log(`No match found for: ${apiTeamName}`)
       }

@@ -96,6 +96,8 @@ export async function POST(request: Request) {
     // Get all teams from our database
     const teams = await prisma.team.findMany()
 
+    console.log('Starting to process games...')
+
     // Process each game to determine team progress
     for (const event of data.events) {
       if (!event.competitions?.[0]) continue
@@ -105,53 +107,81 @@ export async function POST(request: Request) {
       
       if (!isCompleted) continue
 
-      // Check if this is actually a tournament game
+      // Check if this is actually a tournament game (postseason type 3)
       const isTournamentGame = event.season?.type === 3
-      if (!isTournamentGame) continue
+      if (!isTournamentGame) {
+        console.log(`Skipping non-tournament: ${event.name}`)
+        continue
+      }
 
-      // Identify the round
-      const notes = competition.notes || []
+      // Debug: log the event to see what data we have
+      console.log(`\nProcessing game: ${event.name}`)
+      console.log(`  Date: ${event.date}`)
+      if (competition.notes) {
+        console.log(`  Notes: ${JSON.stringify(competition.notes)}`)
+      }
+
+      // Identify the round - check multiple places
       let roundName = ''
+      let roundKey = ''
       
+      // First check notes
+      const notes = competition.notes || []
       for (const note of notes) {
         if (note.headline) {
           const headline = note.headline.toLowerCase()
+          console.log(`  Checking note headline: ${headline}`)
           for (const [key] of Object.entries(ROUND_MAP)) {
             if (headline.includes(key)) {
               roundName = key
+              roundKey = ROUND_MAP[key]
               break
             }
           }
         }
-        if (roundName) break
+        if (roundKey) break
       }
 
-      if (!roundName && event.name) {
+      // Then check event name
+      if (!roundKey && event.name) {
         const eventName = event.name.toLowerCase()
+        console.log(`  Checking event name: ${eventName}`)
         for (const [key] of Object.entries(ROUND_MAP)) {
           if (eventName.includes(key)) {
             roundName = key
+            roundKey = ROUND_MAP[key]
             break
           }
         }
       }
 
-      if (!roundName) continue
+      if (!roundKey) {
+        console.log(`  ❌ Could not identify round for: ${event.name}`)
+        continue
+      }
 
-      const roundKey = ROUND_MAP[roundName]
-      if (!roundKey) continue
+      console.log(`  ✓ Identified as: ${roundKey} (${roundName})`)
 
       // Get both teams and the winner
       const competitors = competition.competitors || []
-      if (competitors.length !== 2) continue
+      if (competitors.length !== 2) {
+        console.log(`  ❌ Invalid number of competitors: ${competitors.length}`)
+        continue
+      }
 
       const winner = competitors.find((c: any) => c.winner)
       const loser = competitors.find((c: any) => !c.winner)
       
-      if (!winner || !loser) continue
+      if (!winner || !loser) {
+        console.log(`  ❌ Could not identify winner/loser`)
+        continue
+      }
 
       const winnerName = winner.team.displayName || winner.team.shortDisplayName
       const loserName = loser.team.displayName || loser.team.shortDisplayName
+
+      console.log(`  Winner: ${winnerName}`)
+      console.log(`  Loser: ${loserName}`)
 
       // Winner advances to this round
       const currentRoundIndex = roundOrder.indexOf(roundKey)
@@ -162,15 +192,27 @@ export async function POST(request: Request) {
       // Update if this is a deeper round
       if (currentRoundIndex > existingRoundIndex) {
         teamProgress.set(winnerName, roundKey)
-        console.log(`${winnerName} reached ${roundKey}`)
+        console.log(`  → ${winnerName} reached ${roundKey}`)
       }
 
       // Loser is eliminated at the PREVIOUS round (they lost this one)
-      if (currentRoundIndex > 0 && !teamProgress.has(loserName)) {
+      if (currentRoundIndex > 0) {
         const previousRound = roundOrder[currentRoundIndex - 1]
-        teamProgress.set(loserName, previousRound)
-        console.log(`${loserName} eliminated after ${previousRound}`)
+        const existingLoserIndex = teamProgress.has(loserName) 
+          ? roundOrder.indexOf(teamProgress.get(loserName)!) 
+          : -1
+        
+        // Only update if they haven't progressed further elsewhere
+        if (currentRoundIndex - 1 > existingLoserIndex) {
+          teamProgress.set(loserName, previousRound)
+          console.log(`  → ${loserName} eliminated after ${previousRound}`)
+        }
       }
+    }
+
+    console.log(`\n=== Final Team Progress ===`)
+    for (const [team, round] of teamProgress.entries()) {
+      console.log(`${team}: ${round}`)
     }
 
     // Now update our database teams based on how far they progressed

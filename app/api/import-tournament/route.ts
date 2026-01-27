@@ -123,7 +123,7 @@ export async function POST(request: Request) {
 
       // Find the winning team
       const competitors = competition.competitors || []
-      const winner = competitors.find(c => c.winner)
+      const winner = competitors.find((c: any) => c.winner)
       
       if (!winner) continue
 

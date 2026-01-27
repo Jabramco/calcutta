@@ -662,7 +662,7 @@ export default function AuctionPage() {
             {/* Bid Input */}
             <div className="p-4 border-t border-[#2a2a38] glass-input">
               {currentUser ? (
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="number"
                     value={bidAmount}
@@ -677,7 +677,7 @@ export default function AuctionPage() {
                   <button
                     onClick={placeBid}
                     disabled={loading || !auctionState?.currentTeam || !bidAmount}
-                    className="btn-gradient-primary px-6 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold whitespace-nowrap"
+                    className="btn-gradient-primary px-6 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold whitespace-nowrap w-full sm:w-auto"
                   >
                     Place Bid
                   </button>

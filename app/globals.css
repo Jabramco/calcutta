@@ -99,7 +99,7 @@ input:focus, textarea:focus, select:focus {
 
 /* Glassmorphism utility classes */
 .glass-card {
-  background: rgba(21, 21, 30, 0.7);
+  background: rgba(21, 21, 30, 0.4);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -141,7 +141,7 @@ input:focus, textarea:focus, select:focus {
   position: absolute;
   border-radius: 50%;
   filter: blur(60px);
-  opacity: 0.25;
+  opacity: 0.30;
   animation: float 20s infinite ease-in-out;
 }
 
@@ -149,7 +149,7 @@ input:focus, textarea:focus, select:focus {
   width: 500px;
   height: 500px;
   background: radial-gradient(circle, #00ceb8, transparent);
-  top: 30%;
+  top: 5%;
   left: 5%;
   animation-delay: 0s;
   animation-duration: 25s;
@@ -159,7 +159,7 @@ input:focus, textarea:focus, select:focus {
   width: 400px;
   height: 400px;
   background: radial-gradient(circle, #9d4edd, transparent);
-  top: 50%;
+  top: 15%;
   right: 10%;
   animation-delay: 3s;
   animation-duration: 20s;
@@ -169,7 +169,7 @@ input:focus, textarea:focus, select:focus {
   width: 450px;
   height: 450px;
   background: radial-gradient(circle, #4cc9f0, transparent);
-  bottom: 10%;
+  top: 35%;
   left: 25%;
   animation-delay: 6s;
   animation-duration: 22s;
@@ -179,7 +179,7 @@ input:focus, textarea:focus, select:focus {
   width: 350px;
   height: 350px;
   background: radial-gradient(circle, #ff6b35, transparent);
-  bottom: 15%;
+  top: 45%;
   right: 15%;
   animation-delay: 9s;
   animation-duration: 28s;

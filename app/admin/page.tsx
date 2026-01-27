@@ -254,13 +254,13 @@ export default function AdminPage() {
             <div className="mt-6 flex justify-end space-x-3">
               <button
                 onClick={handleCancelEdit}
-                className="btn-gradient-dark px-4 py-2 rounded-xl text-white"
+                className="btn-gradient-dark px-4 py-2 rounded-xl"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveEdit}
-                className="btn-gradient-primary px-4 py-2 text-white rounded-xl font-semibold"
+                className="btn-gradient-primary px-4 py-2 rounded-xl font-semibold"
               >
                 Save Changes
               </button>

@@ -412,6 +412,28 @@ export default function AuctionPage() {
     }
   }
 
+  const resumeAuction = async () => {
+    setLoading(true)
+    try {
+      await fetch('/api/auction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resume' })
+      })
+      
+      addChatMessage({
+        type: 'system',
+        message: 'Auction resumed',
+        timestamp: Date.now()
+      })
+      await fetchAuctionState()
+    } catch (error) {
+      console.error('Error resuming auction:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const restartAuction = async () => {
     if (!confirm('Are you sure you want to restart the auction? This will reset all teams, clear all owners, and set the prize pool to $0. This action cannot be undone.')) {
       return
@@ -523,7 +545,7 @@ export default function AuctionPage() {
                 {!auctionState.lastBidTime && (
                   <div className="p-3 rounded-lg text-center glass-input">
                     <div className="text-sm text-[#00ceb8] font-medium">
-                      ⏳ Waiting for first bid...
+                      Waiting for first bid...
                     </div>
                   </div>
                 )}
@@ -534,7 +556,7 @@ export default function AuctionPage() {
                 <button
                   onClick={nextTeam}
                   disabled={loading}
-                  className="btn-gradient-primary px-6 py-3 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                  className="btn-gradient-primary px-6 py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                 >
                   Next Team (Random)
                 </button>
@@ -555,15 +577,23 @@ export default function AuctionPage() {
               <h2 className="text-xl font-semibold mb-4 text-white">Controls</h2>
               
               <div className="space-y-3">
-                {!auctionState?.isActive ? (
+                {!auctionState?.isActive && !auctionState?.currentTeamId ? (
                   <button
                     onClick={startAuction}
                     disabled={loading}
-                    className="btn-gradient-primary w-full px-4 py-3 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                    className="btn-gradient-primary w-full px-4 py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                   >
                     Start Auction
                   </button>
-                ) : auctionState.currentTeam ? (
+                ) : !auctionState?.isActive && auctionState?.currentTeamId ? (
+                  <button
+                    onClick={resumeAuction}
+                    disabled={loading}
+                    className="btn-gradient-primary w-full px-4 py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                  >
+                    Resume Auction
+                  </button>
+                ) : auctionState?.currentTeam ? (
                   <>
                     <button
                       onClick={soldTeam}
@@ -575,7 +605,7 @@ export default function AuctionPage() {
                     <button
                       onClick={stopAuction}
                       disabled={loading}
-                      className="btn-gradient-danger w-full px-4 py-2 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                      className="btn-gradient-dark w-full px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                     >
                       Pause Auction
                     </button>
@@ -584,7 +614,7 @@ export default function AuctionPage() {
                   <button
                     onClick={stopAuction}
                     disabled={loading}
-                    className="btn-gradient-danger w-full px-4 py-2 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                    className="btn-gradient-dark w-full px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                   >
                     Stop Auction
                   </button>
@@ -594,7 +624,7 @@ export default function AuctionPage() {
                 <button
                   onClick={restartAuction}
                   disabled={loading}
-                  className="btn-gradient-secondary w-full px-4 py-2 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                  className="btn-gradient-danger-outline w-full px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                 >
                   Restart Auction
                 </button>
@@ -633,15 +663,12 @@ export default function AuctionPage() {
             <div className="p-4 border-t border-[#2a2a38] glass-input">
               {currentUser ? (
                 <div className="flex gap-2">
-                  <div className="flex-1 px-4 py-2 glass-input rounded-xl text-white flex items-center">
-                    Bidding as: <span className="font-bold ml-2">{currentUser.username}</span>
-                  </div>
                   <input
                     type="number"
                     value={bidAmount}
                     onChange={(e) => setBidAmount(e.target.value)}
                     placeholder="Bid amount"
-                    className="w-32 px-4 py-2 glass-input rounded-xl text-white placeholder-[#6a6a82] focus:outline-none focus:ring-2 focus:ring-[#00ceb8] focus:border-transparent transition-all"
+                    className="flex-1 px-4 py-2 glass-input rounded-xl text-white placeholder-[#6a6a82] focus:outline-none focus:ring-2 focus:ring-[#00ceb8] focus:border-transparent transition-all"
                     disabled={!auctionState?.currentTeam}
                     step="5"
                     min="5"
@@ -650,9 +677,9 @@ export default function AuctionPage() {
                   <button
                     onClick={placeBid}
                     disabled={loading || !auctionState?.currentTeam || !bidAmount}
-                    className="btn-gradient-primary px-6 py-2 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                    className="btn-gradient-primary px-6 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold whitespace-nowrap"
                   >
-                    Bid
+                    Place Bid
                   </button>
                 </div>
               ) : (

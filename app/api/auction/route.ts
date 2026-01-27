@@ -158,14 +158,15 @@ export async function POST(request: Request) {
     }
 
     if (action === 'stop') {
-      auctionState = {
-        isActive: false,
-        currentTeamId: null,
-        currentBid: 0,
-        currentBidder: null,
-        bids: [],
-        lastBidTime: null
-      }
+      // Pause the auction but preserve current team and bids
+      auctionState.isActive = false
+
+      return NextResponse.json({ success: true, state: auctionState })
+    }
+
+    if (action === 'resume') {
+      // Resume the auction with the current team
+      auctionState.isActive = true
 
       return NextResponse.json({ success: true, state: auctionState })
     }

@@ -97,8 +97,8 @@ export default function Navigation() {
                   href={link.href}
                   className={`px-4 py-2 rounded-lg text-sm font-medium ${
                     pathname === link.href
-                      ? 'nav-tab-active text-white font-semibold'
-                      : 'nav-tab text-[#a0a0b8]'
+                      ? 'nav-tab-active font-semibold'
+                      : 'nav-tab'
                   }`}
                 >
                   {link.label}
@@ -172,8 +172,8 @@ export default function Navigation() {
                     href={link.href}
                     className={`px-4 py-3 rounded-lg text-sm font-medium ${
                       pathname === link.href
-                        ? 'nav-tab-active text-white font-semibold'
-                        : 'nav-tab text-[#a0a0b8]'
+                        ? 'nav-tab-active font-semibold'
+                        : 'nav-tab'
                     }`}
                   >
                     {link.label}

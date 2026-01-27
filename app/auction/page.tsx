@@ -103,11 +103,19 @@ export default function AuctionPage() {
 
   // Countdown timer logic
   useEffect(() => {
-    if (!auctionState?.isActive || !auctionState.currentTeam || !auctionState.lastBidTime) {
+    if (!auctionState?.isActive || !auctionState.currentTeam) {
       setCountdown(null)
       setWarningState('none')
       lastAnnouncedWarning.current = 'none'
       hasAutoSold.current = false
+      return
+    }
+
+    // If there's no lastBidTime yet (team just selected, no bids), don't show warnings
+    // but still run the timer so users know bidding is open
+    if (!auctionState.lastBidTime) {
+      setCountdown(null)
+      setWarningState('none')
       return
     }
 
@@ -126,8 +134,8 @@ export default function AuctionPage() {
 
     // Determine warning state and announce ONCE per state change
     if (elapsed >= COUNTDOWN_INTERVAL * 3) {
-      // Auto-sell after "going twice"
-      if (!hasAutoSold.current && auctionState.currentBid > 0) {
+      // Auto-sell after "going twice" - but only if there's a valid bid
+      if (!hasAutoSold.current && auctionState.currentBid > 0 && auctionState.currentBidder) {
         autoSoldTeam()
       }
     } else if (elapsed >= COUNTDOWN_INTERVAL * 2) {

@@ -501,16 +501,15 @@ export default function AuctionPage() {
           
           {auctionState?.isActive && auctionState.currentTeam ? (
             <div>
-              <div className="mb-6 p-6 glass-card rounded-2xl border-2 border-[#00ceb8]/30 shadow-lg shadow-[#00ceb8]/20">
+              <div className="mb-6 p-6 glass-card rounded-2xl border-2 border-[#00ceb8] shadow-lg shadow-[#00ceb8]/40 bg-gradient-to-br from-[#00ceb8]/10 to-transparent">
                 <div className="text-3xl font-bold text-white mb-2">{auctionState.currentTeam.name}</div>
-                <div className="text-sm text-[#a0a0b8]">
+                <div className="text-sm text-[#00ceb8] font-medium">
                   {auctionState.currentTeam.region} Region • Seed #{auctionState.currentTeam.seed}
                 </div>
               </div>
 
               <div className="glass-card rounded-2xl p-6 mb-6">
-
-                <div className="border-t border-[#2a2a38] pt-4 mb-4">
+                <div className="mb-4">
                   <div className="text-sm text-[#a0a0b8] mb-1">Current Bid</div>
                   <div className="text-4xl font-bold text-[#00ceb8]">
                     {formatCurrency(auctionState.currentBid)}
@@ -541,10 +540,8 @@ export default function AuctionPage() {
                 )}
 
                 {!auctionState.lastBidTime && (
-                  <div className="p-3 rounded-lg text-center glass-input">
-                    <div className="text-sm text-[#00ceb8] font-medium">
-                      Waiting for first bid...
-                    </div>
+                  <div className="text-center text-sm text-[#a0a0b8] italic">
+                    Waiting for first bid...
                   </div>
                 )}
               </div>

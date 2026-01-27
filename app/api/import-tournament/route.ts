@@ -87,13 +87,16 @@ export async function POST(request: Request) {
       )
     }
 
-    // Build a map of team wins by round
-    const teamWins: Map<string, Set<string>> = new Map()
+    // Track the deepest round each team reached
+    const teamProgress: Map<string, string> = new Map()
+    
+    // Round order for progression
+    const roundOrder = ['round64', 'round32', 'sweet16', 'elite8', 'final4', 'championship']
 
     // Get all teams from our database
     const teams = await prisma.team.findMany()
 
-    // Process each game to build the win map
+    // Process each game to determine team progress
     for (const event of data.events) {
       if (!event.competitions?.[0]) continue
       
@@ -106,7 +109,7 @@ export async function POST(request: Request) {
       const isTournamentGame = event.season?.type === 3
       if (!isTournamentGame) continue
 
-      // Check for tournament round info
+      // Identify the round
       const notes = competition.notes || []
       let roundName = ''
       
@@ -123,7 +126,6 @@ export async function POST(request: Request) {
         if (roundName) break
       }
 
-      // If no round found in notes, try the event name
       if (!roundName && event.name) {
         const eventName = event.name.toLowerCase()
         for (const [key] of Object.entries(ROUND_MAP)) {
@@ -139,28 +141,43 @@ export async function POST(request: Request) {
       const roundKey = ROUND_MAP[roundName]
       if (!roundKey) continue
 
-      // Find the winning team
+      // Get both teams and the winner
       const competitors = competition.competitors || []
+      if (competitors.length !== 2) continue
+
       const winner = competitors.find((c: any) => c.winner)
+      const loser = competitors.find((c: any) => !c.winner)
       
-      if (!winner) continue
+      if (!winner || !loser) continue
 
       const winnerName = winner.team.displayName || winner.team.shortDisplayName
+      const loserName = loser.team.displayName || loser.team.shortDisplayName
 
-      // Add this round win to the team's record
-      if (!teamWins.has(winnerName)) {
-        teamWins.set(winnerName, new Set())
-      }
-      teamWins.get(winnerName)!.add(roundKey)
+      // Winner advances to this round
+      const currentRoundIndex = roundOrder.indexOf(roundKey)
+      const existingRoundIndex = teamProgress.has(winnerName) 
+        ? roundOrder.indexOf(teamProgress.get(winnerName)!) 
+        : -1
       
-      console.log(`${winnerName} won ${roundKey}`)
+      // Update if this is a deeper round
+      if (currentRoundIndex > existingRoundIndex) {
+        teamProgress.set(winnerName, roundKey)
+        console.log(`${winnerName} reached ${roundKey}`)
+      }
+
+      // Loser is eliminated at the PREVIOUS round (they lost this one)
+      if (currentRoundIndex > 0 && !teamProgress.has(loserName)) {
+        const previousRound = roundOrder[currentRoundIndex - 1]
+        teamProgress.set(loserName, previousRound)
+        console.log(`${loserName} eliminated after ${previousRound}`)
+      }
     }
 
-    // Now update our database teams based on the accumulated wins
+    // Now update our database teams based on how far they progressed
     let updatedTeams = 0
     const updates: string[] = []
 
-    for (const [apiTeamName, rounds] of teamWins.entries()) {
+    for (const [apiTeamName, deepestRound] of teamProgress.entries()) {
       // Try to match with our teams
       const matchedTeam = teams.find((team) => {
         const teamNameLower = team.name.toLowerCase()
@@ -174,24 +191,20 @@ export async function POST(request: Request) {
       })
 
       if (matchedTeam) {
-        // Build the update data
-        const updateData: any = {}
+        // Mark all rounds up to and including their deepest round
+        const deepestIndex = roundOrder.indexOf(deepestRound)
+        const updateData: any = {
+          round64: false,
+          round32: false,
+          sweet16: false,
+          elite8: false,
+          final4: false,
+          championship: false
+        }
         
-        // If they won the championship, they won all rounds
-        if (rounds.has('championship')) {
-          updateData.round64 = true
-          updateData.round32 = true
-          updateData.sweet16 = true
-          updateData.elite8 = true
-          updateData.final4 = true
-          updateData.championship = true
-        } else {
-          // Otherwise, just mark the rounds they won
-          if (rounds.has('round64')) updateData.round64 = true
-          if (rounds.has('round32')) updateData.round32 = true
-          if (rounds.has('sweet16')) updateData.sweet16 = true
-          if (rounds.has('elite8')) updateData.elite8 = true
-          if (rounds.has('final4')) updateData.final4 = true
+        // Check all rounds up to where they were eliminated
+        for (let i = 0; i <= deepestIndex; i++) {
+          updateData[roundOrder[i]] = true
         }
 
         // Update the team
@@ -201,9 +214,8 @@ export async function POST(request: Request) {
         })
 
         updatedTeams++
-        const roundsList = Array.from(rounds).join(', ')
-        updates.push(`${matchedTeam.name}: ${roundsList}`)
-        console.log(`Updated: ${matchedTeam.name} - ${roundsList}`)
+        updates.push(`${matchedTeam.name} reached ${deepestRound}`)
+        console.log(`Updated: ${matchedTeam.name} - reached ${deepestRound}`)
       } else {
         console.log(`No match found for: ${apiTeamName}`)
       }

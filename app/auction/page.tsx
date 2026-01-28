@@ -505,8 +505,8 @@ export default function AuctionPage() {
     <>
       {/* Toast Notification */}
       {toast.visible && (
-        <div className="fixed left-1/2 transform -translate-x-1/2 z-50 animate-slide-down" style={{ top: '80px' }}>
-          <div className="rounded-xl px-6 py-4 shadow-lg bg-[#f5365c] border-2 border-[#ff0000]">
+        <div className="fixed left-1/2 z-50 animate-slide-down" style={{ top: '80px' }}>
+          <div className="rounded-xl px-6 py-4 shadow-lg bg-gradient-to-r from-[#f5365c] to-[#ff6b6b] border-2 border-[#ff0000]">
             <p className="text-white font-semibold">{toast.message}</p>
           </div>
         </div>

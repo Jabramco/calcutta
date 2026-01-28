@@ -46,6 +46,8 @@ export default function AuctionPage() {
   const lastBidCount = useRef<number>(0)
   const hasAutoSold = useRef<boolean>(false)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false })
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Fetch current user
   useEffect(() => {
@@ -62,6 +64,21 @@ export default function AuctionPage() {
     } catch (error) {
       console.error('Error fetching current user:', error)
     }
+  }
+
+  const showToast = (message: string) => {
+    // Clear any existing timeout
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current)
+    }
+    
+    // Show the toast
+    setToast({ message, visible: true })
+    
+    // Auto-hide after 3 seconds
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast({ message: '', visible: false })
+    }, 3000)
   }
 
   // Load chat history from localStorage on mount
@@ -91,7 +108,13 @@ export default function AuctionPage() {
       fetchAuctionState()
       fetchStats()
     }, 1000) // Poll every second for accurate countdown
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(interval)
+      // Clean up toast timeout on unmount
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current)
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -295,7 +318,7 @@ export default function AuctionPage() {
 
     const amount = parseFloat(bidAmount)
     if (isNaN(amount) || amount <= (auctionState?.currentBid || 0)) {
-      alert(`Bid must be higher than current bid of ${formatCurrency(auctionState?.currentBid || 0)}`)
+      showToast('Must be higher than current highest bid')
       return
     }
 
@@ -480,6 +503,15 @@ export default function AuctionPage() {
 
   return (
     <>
+      {/* Toast Notification */}
+      {toast.visible && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-slide-down">
+          <div className="glass-card rounded-xl px-6 py-4 shadow-lg border-2 border-[#f5365c] bg-[#f5365c]/10">
+            <p className="text-white font-semibold">{toast.message}</p>
+          </div>
+        </div>
+      )}
+
       {/* Animated background orbs */}
       <div className="glass-bg">
         <div className="orb orb-1"></div>

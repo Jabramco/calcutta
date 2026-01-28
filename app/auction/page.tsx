@@ -332,6 +332,12 @@ export default function AuctionPage() {
       return
     }
 
+    // Prevent users from outbidding themselves
+    if (auctionState?.currentBidder === currentUser.username) {
+      showToast("Don't outbid yourself silly")
+      return
+    }
+
     setLoading(true)
     try {
       const response = await fetch('/api/auction', {

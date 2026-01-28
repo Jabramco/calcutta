@@ -143,7 +143,8 @@ export default function AuctionPage() {
     }
 
     // If there's no lastBidTime yet (team just selected, no bids), show "waiting for bids"
-    if (!auctionState.lastBidTime) {
+    // NEVER start countdown without at least one bid
+    if (!auctionState.lastBidTime || !auctionState.bids || auctionState.bids.length === 0) {
       setCountdown(null)
       setWarningState('none')
       return
@@ -151,6 +152,11 @@ export default function AuctionPage() {
 
     // Set up interval to update countdown every 100ms
     const interval = setInterval(() => {
+      // Double-check bids exist before running countdown logic
+      if (!auctionState.bids || auctionState.bids.length === 0) {
+        return
+      }
+
       const now = Date.now()
       const elapsed = now - auctionState.lastBidTime!
       const remaining = COUNTDOWN_INTERVAL - (elapsed % COUNTDOWN_INTERVAL)
@@ -158,8 +164,12 @@ export default function AuctionPage() {
 
       // Determine warning state and announce ONCE per state change
       if (elapsed >= COUNTDOWN_INTERVAL * 3) {
-        // Auto-sell after "going twice" - only if there's a valid bid
-        if (!hasAutoSold.current && auctionState.currentBid > 0 && auctionState.currentBidder) {
+        // Auto-sell after "going twice" - ONLY if there's at least one bid
+        if (!hasAutoSold.current && 
+            auctionState.currentBid > 0 && 
+            auctionState.currentBidder &&
+            auctionState.bids &&
+            auctionState.bids.length > 0) {
           autoSoldTeam()
         }
       } else if (elapsed >= COUNTDOWN_INTERVAL * 2) {
@@ -193,7 +203,7 @@ export default function AuctionPage() {
     }, 100) // Update every 100ms
 
     return () => clearInterval(interval)
-  }, [auctionState?.lastBidTime, auctionState?.currentTeam, auctionState?.isActive])
+  }, [auctionState?.lastBidTime, auctionState?.currentTeam, auctionState?.isActive, auctionState?.bids])
 
   const fetchStats = async () => {
     try {
@@ -350,7 +360,9 @@ export default function AuctionPage() {
   }
 
   const autoSoldTeam = async () => {
+    // NEVER auto-sell without at least one bid
     if (!auctionState?.currentBidder || auctionState.currentBid === 0) return
+    if (!auctionState?.bids || auctionState.bids.length === 0) return
     if (loading) return // Prevent concurrent sells
     if (hasAutoSold.current) return // Already sold this team
 

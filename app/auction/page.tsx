@@ -45,9 +45,14 @@ export default function AuctionPage() {
   const lastAnnouncedTeamId = useRef<number | null>(null)
   const lastBidCount = useRef<number>(0)
   const hasAutoSold = useRef<boolean>(false)
+  const auctionStateRef = useRef<AuctionState | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false })
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    auctionStateRef.current = auctionState
+  }, [auctionState])
 
   // Fetch current user
   useEffect(() => {
@@ -150,26 +155,21 @@ export default function AuctionPage() {
       return
     }
 
-    // Set up interval to update countdown every 100ms
+    // Set up interval to update countdown every 100ms. Use ref for latest state so we never
+    // fire autoSoldTeam() based on stale closure (e.g. after server already advanced to next team).
     const interval = setInterval(() => {
-      // Double-check bids exist before running countdown logic
-      if (!auctionState.bids || auctionState.bids.length === 0) {
-        return
-      }
+      const latest = auctionStateRef.current
+      if (!latest?.bids || latest.bids.length === 0 || !latest.lastBidTime) return
+      if (latest.currentTeam?.id !== currentTeamIdRef.current) return // team changed, don't act on old team
 
       const now = Date.now()
-      const elapsed = now - auctionState.lastBidTime!
+      const elapsed = now - latest.lastBidTime
       const remaining = COUNTDOWN_INTERVAL - (elapsed % COUNTDOWN_INTERVAL)
       setCountdown(remaining)
 
       // Determine warning state and announce ONCE per state change
       if (elapsed >= COUNTDOWN_INTERVAL * 3) {
-        // Auto-sell after "going twice" - ONLY if there's at least one bid
-        if (!hasAutoSold.current && 
-            auctionState.currentBid > 0 && 
-            auctionState.currentBidder &&
-            auctionState.bids &&
-            auctionState.bids.length > 0) {
+        if (!hasAutoSold.current && latest.currentBid > 0 && latest.currentBidder && latest.bids.length > 0) {
           autoSoldTeam()
         }
       } else if (elapsed >= COUNTDOWN_INTERVAL * 2) {
@@ -193,7 +193,6 @@ export default function AuctionPage() {
           })
         }
       } else {
-        // Reset state if time goes back (new bid placed)
         if (lastAnnouncedWarning.current !== 'none') {
           setWarningState('none')
           lastAnnouncedWarning.current = 'none'
@@ -366,9 +365,9 @@ export default function AuctionPage() {
   }
 
   const autoSoldTeam = async () => {
-    // NEVER auto-sell without at least one bid
-    if (!auctionState?.currentBidder || auctionState.currentBid === 0) return
-    if (!auctionState?.bids || auctionState.bids.length === 0) return
+    const state = auctionStateRef.current
+    if (!state?.currentBidder || state.currentBid === 0) return
+    if (!state?.bids || state.bids.length === 0) return
     if (loading) return // Prevent concurrent sells
     if (hasAutoSold.current) return // Already sold this team
 
@@ -385,9 +384,16 @@ export default function AuctionPage() {
 
       if (response.ok) {
         const data = await response.json()
+        // Server returned no-op (e.g. another client already sold); don't add SOLD or advance UI
+        if (data.noOp) {
+          hasAutoSold.current = false
+          await fetchAuctionState()
+          setLoading(false)
+          return
+        }
         addChatMessage({
           type: 'sold',
-          message: `SOLD to ${auctionState?.currentBidder} for ${formatCurrency(auctionState?.currentBid || 0)}!`,
+          message: `SOLD to ${state.currentBidder} for ${formatCurrency(state.currentBid || 0)}!`,
           timestamp: Date.now()
         })
         
@@ -413,6 +419,11 @@ export default function AuctionPage() {
         
         await fetchAuctionState()
         await fetchStats()
+      } else {
+        const data = await response.json().catch(() => ({}))
+        hasAutoSold.current = false
+        if (data?.error) showToast(data.error)
+        await fetchAuctionState()
       }
     } catch (error) {
       console.error('Error selling team:', error)

@@ -166,6 +166,29 @@ export async function POST(request: Request) {
         })
       }
 
+      // Require the last bid to be at least 2s ago so other clients have time to poll and see it.
+      // Prevents one client selling before others see the bid (avoids "two teams with no bid" confusion).
+      const MIN_BID_AGE_MS = 2000
+      const lastBidTimeMs = state.lastBidTime != null ? Number(state.lastBidTime) : 0
+      if (Date.now() - lastBidTimeMs < MIN_BID_AGE_MS) {
+        const currentState = parseState(dbState)
+        let currentTeam = null
+        if (state.currentTeamId) {
+          currentTeam = await prisma.team.findUnique({
+            where: { id: state.currentTeamId }
+          })
+        }
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Please wait a moment before selling so others can see the bid.',
+            state: { ...currentState, currentTeam },
+            noOp: true
+          },
+          { status: 400 }
+        )
+      }
+
       if (state.currentBidder && state.currentBid > 0) {
         // Find or create owner
         let owner = await prisma.owner.findFirst({

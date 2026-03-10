@@ -148,6 +148,24 @@ export async function POST(request: Request) {
         )
       }
 
+      // Idempotency: if there's no winning bid on this team, do not advance.
+      // Prevents double-advance when two clients both fire "sold" (e.g. countdown expired on both).
+      const hasWinningBid = state.currentBidder && state.currentBid > 0
+      if (!hasWinningBid) {
+        const currentState = parseState(dbState)
+        let currentTeam = null
+        if (state.currentTeamId) {
+          currentTeam = await prisma.team.findUnique({
+            where: { id: state.currentTeamId }
+          })
+        }
+        return NextResponse.json({
+          success: true,
+          state: { ...currentState, currentTeam },
+          noOp: true
+        })
+      }
+
       if (state.currentBidder && state.currentBid > 0) {
         // Find or create owner
         let owner = await prisma.owner.findFirst({

@@ -41,6 +41,7 @@ export default function AuctionPage() {
   const chatEndRef = useRef<HTMLDivElement>(null)
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null)
   const lastAnnouncedWarning = useRef<'none' | 'once' | 'twice'>('none')
+  const lastAnnouncedBucketRef = useRef<number>(0) // 0=none, 1=once, 2=twice — only add chat when we enter a new bucket
   const currentTeamIdRef = useRef<number | null>(null)
   const lastAnnouncedTeamId = useRef<number | null>(null)
   const lastBidCount = useRef<number>(0)
@@ -146,6 +147,7 @@ export default function AuctionPage() {
     if (currentTeamIdRef.current !== auctionState.currentTeam.id) {
       currentTeamIdRef.current = auctionState.currentTeam.id
       lastAnnouncedWarning.current = 'none'
+      lastAnnouncedBucketRef.current = 0
       setWarningState('none')
       hasAutoSold.current = false
     }
@@ -188,7 +190,8 @@ export default function AuctionPage() {
           autoSoldTeam()
         }
       } else if (elapsed >= COUNTDOWN_INTERVAL * 2) {
-        if (lastAnnouncedWarning.current !== 'twice') {
+        if (lastAnnouncedBucketRef.current < 2) {
+          lastAnnouncedBucketRef.current = 2
           setWarningState('twice')
           lastAnnouncedWarning.current = 'twice'
           addChatMessage({
@@ -196,9 +199,13 @@ export default function AuctionPage() {
             message: 'Going TWICE!',
             timestamp: Date.now()
           })
+        } else {
+          setWarningState('twice')
+          lastAnnouncedWarning.current = 'twice'
         }
       } else if (elapsed >= COUNTDOWN_INTERVAL) {
-        if (lastAnnouncedWarning.current === 'none') {
+        if (lastAnnouncedBucketRef.current < 1) {
+          lastAnnouncedBucketRef.current = 1
           setWarningState('once')
           lastAnnouncedWarning.current = 'once'
           addChatMessage({
@@ -206,11 +213,13 @@ export default function AuctionPage() {
             message: 'Going once!',
             timestamp: Date.now()
           })
+        } else {
+          setWarningState('once')
+          lastAnnouncedWarning.current = 'once'
         }
       } else if (elapsed < 1000) {
-        // Only reset warnings in the first second after a bid (new bid). Avoid resetting when
-        // elapsed is 1–5s so we don't re-announce "Going once!" when polling makes elapsed jitter.
-        if (lastAnnouncedWarning.current !== 'none') {
+        if (lastAnnouncedBucketRef.current > 0) {
+          lastAnnouncedBucketRef.current = 0
           setWarningState('none')
           lastAnnouncedWarning.current = 'none'
           hasAutoSold.current = false

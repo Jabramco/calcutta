@@ -26,7 +26,7 @@ interface ChatMessage {
   amount?: number
 }
 
-const COUNTDOWN_INTERVAL = 5000 // 5 seconds between warnings
+const COUNTDOWN_INTERVAL = 3000 // 3 seconds between warnings
 
 export default function AuctionPage() {
   const [auctionState, setAuctionState] = useState<AuctionState | null>(null)
@@ -260,7 +260,18 @@ export default function AuctionPage() {
 
       const usedServerEvents = data.events && Array.isArray(data.events)
       if (usedServerEvents) {
-        setChatMessages(data.events)
+        // Keep server event log as base; append "Going once" / "Going TWICE" if we're in that phase
+        // (server doesn't store these, so they'd disappear on next poll otherwise)
+        const base = data.events as ChatMessage[]
+        const warning = lastAnnouncedWarning.current
+        const now = Date.now()
+        const messages =
+          warning === 'once'
+            ? [...base, { type: 'warning' as const, message: 'Going once!', timestamp: now }]
+            : warning === 'twice'
+              ? [...base, { type: 'warning' as const, message: 'Going once!', timestamp: now - COUNTDOWN_INTERVAL }, { type: 'warning' as const, message: 'Going TWICE!', timestamp: now }]
+              : base
+        setChatMessages(messages)
         if (data.currentTeam) {
           lastAnnouncedTeamId.current = data.currentTeam.id
           currentTeamIdRef.current = data.currentTeam.id

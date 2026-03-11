@@ -257,30 +257,74 @@ export default function AuctionPage() {
     try {
       const response = await fetch('/api/auction')
       const data = await response.json()
-      
-      // When we see a new current team: claim it immediately (set ref first) so concurrent
-      // fetches don't both add "Now auctioning" for the same team. Only add chat message
-      // if we're the one who transitioned (prev id !== new id) and not on first fetch after mount.
+
+      const usedServerEvents = data.events && Array.isArray(data.events)
+      if (usedServerEvents) {
+        setChatMessages(data.events)
+        if (data.currentTeam) {
+          lastAnnouncedTeamId.current = data.currentTeam.id
+          currentTeamIdRef.current = data.currentTeam.id
+        } else {
+          lastAnnouncedTeamId.current = null
+          currentTeamIdRef.current = null
+        }
+        lastBidCount.current = data.bids?.length ?? 0
+        if (data.lastSale?.teamName) lastShownSaleTeamRef.current = data.lastSale.teamName
+        isFirstFetchAfterMountRef.current = false
+      } else {
+        // Fallback when server doesn't send events: incremental updates (e.g. lastSale, now auctioning, new bids)
+        const lastSale = data.lastSale
+        if (lastSale && lastSale.teamName && lastSale.winner != null && lastSale.teamName !== lastShownSaleTeamRef.current) {
+          lastShownSaleTeamRef.current = lastSale.teamName
+          addChatMessage({
+            type: 'sold',
+            message: `SOLD to ${lastSale.winner} for ${formatCurrency(lastSale.amount)}!`,
+            timestamp: Date.now()
+          })
+        }
+        if (data.currentTeam) {
+          const prevTeamId = lastAnnouncedTeamId.current
+          const isNewTeam = prevTeamId !== data.currentTeam.id
+          lastAnnouncedTeamId.current = data.currentTeam.id
+          currentTeamIdRef.current = data.currentTeam.id
+          setWarningState('none')
+          lastAnnouncedWarning.current = 'none'
+          hasAutoSold.current = false
+          if (isNewTeam) {
+            lastBidCount.current = data.bids?.length ?? 0
+            if (!isFirstFetchAfterMountRef.current) {
+              addChatMessage({
+                type: 'bot',
+                message: `Now auctioning: ${data.currentTeam.name} - ${data.currentTeam.region} Region, Seed #${data.currentTeam.seed}`,
+                timestamp: Date.now()
+              })
+            }
+          }
+        }
+        isFirstFetchAfterMountRef.current = false
+        if (data.bids && data.bids.length > lastBidCount.current) {
+          const newBids = data.bids.slice(lastBidCount.current)
+          lastBidCount.current = data.bids.length
+          newBids.forEach((bid: any) => {
+            setWarningState('none')
+            lastAnnouncedWarning.current = 'none'
+            hasAutoSold.current = false
+            addChatMessage({
+              type: 'bid',
+              message: `${bid.bidder} bids ${formatCurrency(bid.amount)}!`,
+              timestamp: bid.timestamp,
+              bidder: bid.bidder,
+              amount: bid.amount
+            })
+          })
+        }
+      }
+
       if (data.currentTeam) {
-        const prevTeamId = lastAnnouncedTeamId.current
-        const isNewTeam = prevTeamId !== data.currentTeam.id
-        lastAnnouncedTeamId.current = data.currentTeam.id
-        currentTeamIdRef.current = data.currentTeam.id
         setWarningState('none')
         lastAnnouncedWarning.current = 'none'
         hasAutoSold.current = false
-        if (isNewTeam) {
-          lastBidCount.current = data.bids?.length ?? 0
-          if (!isFirstFetchAfterMountRef.current) {
-            addChatMessage({
-              type: 'bot',
-              message: `Now auctioning: ${data.currentTeam.name} - ${data.currentTeam.region} Region, Seed #${data.currentTeam.seed}`,
-              timestamp: Date.now()
-            })
-          }
-        }
       }
-      isFirstFetchAfterMountRef.current = false
 
       // If we just got state where countdown is already past 15s (e.g. we reconnected after being offline),
       // don't auto-sell for 5s so we don't immediately fire sold on reconnect.
@@ -289,35 +333,6 @@ export default function AuctionPage() {
         if (elapsed >= COUNTDOWN_INTERVAL * 3) {
           reconnectGraceUntilRef.current = Date.now() + 5000
         }
-      }
-
-      // Check for new bids - only announce if bid count increased
-      if (data.bids && data.bids.length > lastBidCount.current) {
-        const newBids = data.bids.slice(lastBidCount.current)
-        lastBidCount.current = data.bids.length
-        newBids.forEach((bid: any) => {
-          setWarningState('none')
-          lastAnnouncedWarning.current = 'none' // Reset warnings on new bid
-          hasAutoSold.current = false // Reset auto-sell on new bid
-          addChatMessage({
-            type: 'bid',
-            message: `${bid.bidder} bids ${formatCurrency(bid.amount)}!`,
-            timestamp: bid.timestamp,
-            bidder: bid.bidder,
-            amount: bid.amount
-          })
-        })
-      }
-
-      // Show SOLD from server lastSale so all clients see who won (not just the one who triggered sell)
-      const lastSale = data.lastSale
-      if (lastSale && lastSale.teamName && lastSale.winner != null && lastSale.teamName !== lastShownSaleTeamRef.current) {
-        lastShownSaleTeamRef.current = lastSale.teamName
-        addChatMessage({
-          type: 'sold',
-          message: `SOLD to ${lastSale.winner} for ${formatCurrency(lastSale.amount)}!`,
-          timestamp: Date.now()
-        })
       }
 
       // Count remaining teams

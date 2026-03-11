@@ -34,6 +34,20 @@ function parseState(dbState: any) {
   }
 }
 
+const AUCTION_EVENT_LOG_KEY = 'auctionEventLog'
+type AuctionEvent = { type: string; message: string; timestamp: number; bidder?: string; amount?: number }
+
+async function appendAuctionEvent(prismaOrTx: any, event: AuctionEvent) {
+  const row = await prismaOrTx.settings.findUnique({ where: { key: AUCTION_EVENT_LOG_KEY } })
+  const events: AuctionEvent[] = row?.value ? (() => { try { return JSON.parse(row.value) } catch { return [] } })() : []
+  events.push(event)
+  await prismaOrTx.settings.upsert({
+    where: { key: AUCTION_EVENT_LOG_KEY },
+    create: { key: AUCTION_EVENT_LOG_KEY, value: JSON.stringify(events) },
+    update: { value: JSON.stringify(events) }
+  })
+}
+
 export async function GET() {
   try {
     const dbState = await getAuctionState()
@@ -46,10 +60,33 @@ export async function GET() {
       })
     }
 
+    // So clients that rejoin see "SOLD to X for $Y!" — stored in Settings to avoid schema change
+    let lastSale: { teamName: string; winner: string; amount: number } | null = null
+    const lastSaleRow = await prisma.settings.findUnique({ where: { key: 'lastAuctionSale' } })
+    if (lastSaleRow?.value) {
+      try {
+        lastSale = JSON.parse(lastSaleRow.value) as { teamName: string; winner: string; amount: number }
+      } catch {
+        lastSale = null
+      }
+    }
+
+    // Full auction event log so any device sees full history (bids, sold, now auctioning, etc.)
+    let events: AuctionEvent[] = []
+    const eventLogRow = await prisma.settings.findUnique({ where: { key: AUCTION_EVENT_LOG_KEY } })
+    if (eventLogRow?.value) {
+      try {
+        events = JSON.parse(eventLogRow.value) as AuctionEvent[]
+      } catch {
+        events = []
+      }
+    }
+
     return NextResponse.json({
       ...state,
       currentTeam,
-      lastSale: null
+      lastSale,
+      events
     })
   } catch (error: any) {
     console.error('Error fetching auction state:', error)
@@ -65,7 +102,8 @@ export async function GET() {
       bids: [],
       lastBidTime: null,
       currentTeam: null,
-      lastSale: null
+      lastSale: null,
+      events: []
     })
   }
 }
@@ -115,6 +153,12 @@ export async function POST(request: Request) {
         }
       })
 
+      const now = Date.now()
+      if (action === 'start') {
+        await appendAuctionEvent(prisma, { type: 'system', message: 'Auction started! First team selected randomly...', timestamp: now })
+      }
+      await appendAuctionEvent(prisma, { type: 'bot', message: `Now auctioning: ${randomTeam.name} - ${randomTeam.region} Region, Seed #${randomTeam.seed}`, timestamp: now + (action === 'start' ? 1 : 0) })
+
       return NextResponse.json({ success: true, state: parseState(updatedDbState) })
     }
 
@@ -133,7 +177,8 @@ export async function POST(request: Request) {
         )
       }
 
-      const newBid = { bidder, amount, timestamp: Date.now() }
+      const now = Date.now()
+      const newBid = { bidder, amount, timestamp: now }
       state.bids.push(newBid)
 
       // Update state in database
@@ -143,9 +188,12 @@ export async function POST(request: Request) {
           currentBid: amount,
           currentBidder: bidder,
           bids: JSON.stringify(state.bids),
-          lastBidTime: BigInt(Date.now())
+          lastBidTime: BigInt(now)
         }
       })
+
+      const formatCurrency = (n: number) => `$${Number(n).toFixed(2)}`
+      await appendAuctionEvent(prisma, { type: 'bid', message: `${bidder} bids ${formatCurrency(amount)}!`, timestamp: now, bidder, amount })
 
       return NextResponse.json({ success: true, state: parseState(updatedDbState) })
     }
@@ -185,10 +233,26 @@ export async function POST(request: Request) {
           data: { ownerId: owner.id, cost: state.currentBid }
         })
 
+        const lastSaleJson = JSON.stringify({
+          teamName: soldTeam?.name ?? 'Team',
+          winner: state.currentBidder,
+          amount: state.currentBid
+        })
+        await tx.settings.upsert({
+          where: { key: 'lastAuctionSale' },
+          create: { key: 'lastAuctionSale', value: lastSaleJson },
+          update: { value: lastSaleJson }
+        })
+
         const unassignedTeams = await tx.team.findMany({ where: { ownerId: null } })
+        const formatCurrency = (n: number) => `$${Number(n).toFixed(2)}`
+        const now = Date.now()
+        await appendAuctionEvent(tx, { type: 'sold', message: `SOLD to ${state.currentBidder} for ${formatCurrency(state.currentBid)}!`, timestamp: now })
+
         let updatedDbState
         if (unassignedTeams.length > 0) {
           const randomTeam = unassignedTeams[Math.floor(Math.random() * unassignedTeams.length)]
+          await appendAuctionEvent(tx, { type: 'bot', message: `Now auctioning: ${randomTeam.name} - ${randomTeam.region} Region, Seed #${randomTeam.seed}`, timestamp: now + 1 })
           updatedDbState = await tx.auctionState.update({
             where: { id: lockedState.id },
             data: {

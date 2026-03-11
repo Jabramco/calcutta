@@ -29,6 +29,9 @@ export async function POST() {
     })
     await prisma.owner.deleteMany()
 
+    await prisma.settings.deleteMany({ where: { key: 'lastAuctionSale' } })
+    await prisma.settings.deleteMany({ where: { key: 'auctionEventLog' } })
+
     // Reset auction state
     const existingState = await prisma.auctionState.findFirst()
     if (existingState) {

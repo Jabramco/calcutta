@@ -260,17 +260,36 @@ export default function AuctionPage() {
 
       const usedServerEvents = data.events && Array.isArray(data.events)
       if (usedServerEvents) {
-        // Keep server event log as base; append "Going once" / "Going TWICE" if we're in that phase
-        // (server doesn't store these, so they'd disappear on next poll otherwise)
         const base = data.events as ChatMessage[]
-        const warning = lastAnnouncedWarning.current
         const now = Date.now()
-        const messages =
+        let messages = base
+
+        // Right after a sale, server events are [... SOLD, Now auctioning]. We had "Going once/twice"
+        // in the UI but they're not on the server — insert them before the SOLD so they don't disappear.
+        const lastEv = base[base.length - 1]
+        const secondLast = base[base.length - 2]
+        const justSold = lastEv?.type === 'bot' && secondLast?.type === 'sold'
+        const hadWarnings = lastAnnouncedWarning.current === 'once' || lastAnnouncedWarning.current === 'twice'
+        if (justSold && hadWarnings) {
+          const soldIndex = base.length - 2
+          messages = [
+            ...base.slice(0, soldIndex),
+            { type: 'warning' as const, message: 'Going once!', timestamp: now - COUNTDOWN_INTERVAL },
+            { type: 'warning' as const, message: 'Going TWICE!', timestamp: now },
+            ...base.slice(soldIndex)
+          ]
+          lastAnnouncedWarning.current = 'none'
+          setWarningState('none')
+        }
+
+        // Append current team's "Going once" / "Going TWICE" if we're in countdown (server doesn't store these)
+        const warning = lastAnnouncedWarning.current
+        messages =
           warning === 'once'
-            ? [...base, { type: 'warning' as const, message: 'Going once!', timestamp: now }]
+            ? [...messages, { type: 'warning' as const, message: 'Going once!', timestamp: now }]
             : warning === 'twice'
-              ? [...base, { type: 'warning' as const, message: 'Going once!', timestamp: now - COUNTDOWN_INTERVAL }, { type: 'warning' as const, message: 'Going TWICE!', timestamp: now }]
-              : base
+              ? [...messages, { type: 'warning' as const, message: 'Going once!', timestamp: now - COUNTDOWN_INTERVAL }, { type: 'warning' as const, message: 'Going TWICE!', timestamp: now }]
+              : messages
         setChatMessages(messages)
         if (data.currentTeam) {
           lastAnnouncedTeamId.current = data.currentTeam.id

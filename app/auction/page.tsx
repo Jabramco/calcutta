@@ -207,7 +207,9 @@ export default function AuctionPage() {
             timestamp: Date.now()
           })
         }
-      } else {
+      } else if (elapsed < 1000) {
+        // Only reset warnings in the first second after a bid (new bid). Avoid resetting when
+        // elapsed is 1–5s so we don't re-announce "Going once!" when polling makes elapsed jitter.
         if (lastAnnouncedWarning.current !== 'none') {
           setWarningState('none')
           lastAnnouncedWarning.current = 'none'

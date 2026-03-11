@@ -48,6 +48,8 @@ export default function AuctionPage() {
   const lastAnnouncedTeamId = useRef<number | null>(null)
   const lastBidCount = useRef<number>(0)
   const lastShownSaleTeamRef = useRef<string | null>(null)
+  const lastInsertedWarningsBeforeSoldAtRef = useRef<number | null>(null)
+  const lastMessagesWithWarningsInsertedRef = useRef<ChatMessage[] | null>(null) // keep merged list so next poll doesn't overwrite with server-only events
   const hasAutoSold = useRef<boolean>(false)
   const auctionStateRef = useRef<AuctionState | null>(null)
   const isFirstFetchAfterMountRef = useRef<boolean>(true)
@@ -264,22 +266,33 @@ export default function AuctionPage() {
         const now = Date.now()
         let messages = base
 
-        // Right after a sale, server events are [... SOLD, Now auctioning]. We had "Going once/twice"
-        // in the UI but they're not on the server — insert them before the SOLD so they don't disappear.
+        // Server never stores "Going once/twice". When the log ends with SOLD then "Now auctioning",
+        // insert those two messages before the SOLD once per sale (track by SOLD timestamp to avoid duplicates on every poll).
         const lastEv = base[base.length - 1]
-        const secondLast = base[base.length - 2]
-        const justSold = lastEv?.type === 'bot' && secondLast?.type === 'sold'
-        const hadWarnings = lastAnnouncedWarning.current === 'once' || lastAnnouncedWarning.current === 'twice'
-        if (justSold && hadWarnings) {
-          const soldIndex = base.length - 2
-          messages = [
-            ...base.slice(0, soldIndex),
-            { type: 'warning' as const, message: 'Going once!', timestamp: now - COUNTDOWN_INTERVAL },
-            { type: 'warning' as const, message: 'Going TWICE!', timestamp: now },
-            ...base.slice(soldIndex)
-          ]
-          lastAnnouncedWarning.current = 'none'
-          setWarningState('none')
+        const secondLast = base[base.length - 2] as ChatMessage | undefined
+        const endsWithSoldThenNext = lastEv?.type === 'bot' && secondLast?.type === 'sold'
+        const soldIndex = base.length - 2
+        const soldTimestamp = secondLast?.timestamp
+        const alreadyInsertedForThisSold =
+          soldTimestamp != null && lastInsertedWarningsBeforeSoldAtRef.current === soldTimestamp
+        const alreadyHasWarningsInLog =
+          base[soldIndex - 2]?.type === 'warning' && base[soldIndex - 1]?.type === 'warning' &&
+          base[soldIndex - 2]?.message === 'Going once!' && base[soldIndex - 1]?.message === 'Going TWICE!'
+        if (endsWithSoldThenNext && !alreadyHasWarningsInLog) {
+          if (!alreadyInsertedForThisSold) {
+            messages = [
+              ...base.slice(0, soldIndex),
+              { type: 'warning' as const, message: 'Going once!', timestamp: now - COUNTDOWN_INTERVAL },
+              { type: 'warning' as const, message: 'Going TWICE!', timestamp: now },
+              ...base.slice(soldIndex)
+            ]
+            if (soldTimestamp != null) lastInsertedWarningsBeforeSoldAtRef.current = soldTimestamp
+            lastMessagesWithWarningsInsertedRef.current = messages
+            lastAnnouncedWarning.current = 'none'
+            setWarningState('none')
+          } else {
+            messages = lastMessagesWithWarningsInsertedRef.current ?? base
+          }
         }
 
         // Append current team's "Going once" / "Going TWICE" if we're in countdown (server doesn't store these)
@@ -399,8 +412,10 @@ export default function AuctionPage() {
         // Clear chat history when starting fresh auction
         setChatMessages([])
         lastShownSaleTeamRef.current = null
+        lastInsertedWarningsBeforeSoldAtRef.current = null
+        lastMessagesWithWarningsInsertedRef.current = null
         localStorage.removeItem('auctionChatHistory')
-        
+
         addChatMessage({
           type: 'system',
           message: 'Auction started! First team selected randomly...',
@@ -628,8 +643,10 @@ export default function AuctionPage() {
         // Clear chat history
         setChatMessages([])
         lastShownSaleTeamRef.current = null
+        lastInsertedWarningsBeforeSoldAtRef.current = null
+        lastMessagesWithWarningsInsertedRef.current = null
         localStorage.removeItem('auctionChatHistory')
-        
+
         // Reset refs
         lastAnnouncedTeamId.current = null
         lastBidCount.current = 0

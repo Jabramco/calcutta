@@ -14,10 +14,7 @@ export async function POST() {
       )
     }
 
-    // Delete all owners
-    await prisma.owner.deleteMany()
-
-    // Reset all teams - remove owners, costs, and wins
+    // Clear team references first (ownerId FK), then delete owners
     await prisma.team.updateMany({
       data: {
         ownerId: null,
@@ -30,31 +27,27 @@ export async function POST() {
         championship: false,
       }
     })
+    await prisma.owner.deleteMany()
 
-    // Reset auction state
+    // Reset auction state (include lastSale when column exists)
     const existingState = await prisma.auctionState.findFirst()
+    const resetData = {
+      isActive: false,
+      currentTeamId: null,
+      currentBid: 0,
+      currentBidder: null,
+      bids: '[]',
+      lastBidTime: null,
+      lastSale: null
+    }
     if (existingState) {
       await prisma.auctionState.update({
         where: { id: existingState.id },
-        data: {
-          isActive: false,
-          currentTeamId: null,
-          currentBid: 0,
-          currentBidder: null,
-          bids: '[]',
-          lastBidTime: null
-        }
+        data: resetData
       })
     } else {
       await prisma.auctionState.create({
-        data: {
-          isActive: false,
-          currentTeamId: null,
-          currentBid: 0,
-          currentBidder: null,
-          bids: '[]',
-          lastBidTime: null
-        }
+        data: resetData
       })
     }
 

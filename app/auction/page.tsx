@@ -331,7 +331,10 @@ export default function AuctionPage() {
         }
       }
 
-      if (data.currentTeam) {
+      // Only reset warning state when not using server events (incremental path).
+      // When using server events, the countdown effect owns lastAnnouncedWarning so we must not
+      // clear it here or the next poll won't append "Going once/twice" and they'll disappear.
+      if (!usedServerEvents && data.currentTeam) {
         setWarningState('none')
         lastAnnouncedWarning.current = 'none'
         hasAutoSold.current = false

@@ -262,19 +262,21 @@ export default function AuctionPage() {
       // if we're the one who transitioned (prev id !== new id) and not on first fetch after mount.
       if (data.currentTeam) {
         const prevTeamId = lastAnnouncedTeamId.current
+        const isNewTeam = prevTeamId !== data.currentTeam.id
         lastAnnouncedTeamId.current = data.currentTeam.id
         currentTeamIdRef.current = data.currentTeam.id
         setWarningState('none')
         lastAnnouncedWarning.current = 'none'
         hasAutoSold.current = false
-        lastBidCount.current = data.bids?.length ?? 0
-        const isNewTeam = prevTeamId !== data.currentTeam.id
-        if (isNewTeam && !isFirstFetchAfterMountRef.current) {
-          addChatMessage({
-            type: 'bot',
-            message: `Now auctioning: ${data.currentTeam.name} - ${data.currentTeam.region} Region, Seed #${data.currentTeam.seed}`,
-            timestamp: Date.now()
-          })
+        if (isNewTeam) {
+          lastBidCount.current = data.bids?.length ?? 0
+          if (!isFirstFetchAfterMountRef.current) {
+            addChatMessage({
+              type: 'bot',
+              message: `Now auctioning: ${data.currentTeam.name} - ${data.currentTeam.region} Region, Seed #${data.currentTeam.seed}`,
+              timestamp: Date.now()
+            })
+          }
         }
       }
       isFirstFetchAfterMountRef.current = false

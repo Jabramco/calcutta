@@ -47,6 +47,7 @@ export default function AuctionPage() {
   const hasAutoSold = useRef<boolean>(false)
   const auctionStateRef = useRef<AuctionState | null>(null)
   const isFirstFetchAfterMountRef = useRef<boolean>(true)
+  const mountedAtRef = useRef<number>(Date.now())
   const [isInitialized, setIsInitialized] = useState(false)
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false })
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -168,9 +169,18 @@ export default function AuctionPage() {
       const remaining = COUNTDOWN_INTERVAL - (elapsed % COUNTDOWN_INTERVAL)
       setCountdown(remaining)
 
-      // Determine warning state and announce ONCE per state change
+      // Determine warning state and announce ONCE per state change.
+      // Don't auto-sell for 5s after mount so we don't sell immediately when returning to the page
+      // with stale server state (old lastBidTime would make elapsed already past 15s).
+      const gracePeriodMs = 5000
       if (elapsed >= COUNTDOWN_INTERVAL * 3) {
-        if (!hasAutoSold.current && latest.currentBid > 0 && latest.currentBidder && latest.bids.length > 0) {
+        if (
+          !hasAutoSold.current &&
+          latest.currentBid > 0 &&
+          latest.currentBidder &&
+          latest.bids.length > 0 &&
+          Date.now() - mountedAtRef.current > gracePeriodMs
+        ) {
           autoSoldTeam()
         }
       } else if (elapsed >= COUNTDOWN_INTERVAL * 2) {
@@ -220,25 +230,25 @@ export default function AuctionPage() {
       const response = await fetch('/api/auction')
       const data = await response.json()
       
-      // Check if new team was announced - only announce if it's a truly new team ID.
-      // Skip adding chat message on first fetch after mount (user just navigated back) so we
-      // don't show two "Now auctioning" lines in a row (previous team from history + current).
-      if (data.currentTeam && data.currentTeam.id !== lastAnnouncedTeamId.current) {
+      // When we see a new current team: claim it immediately (set ref first) so concurrent
+      // fetches don't both add "Now auctioning" for the same team. Only add chat message
+      // if we're the one who transitioned (prev id !== new id) and not on first fetch after mount.
+      if (data.currentTeam) {
+        const prevTeamId = lastAnnouncedTeamId.current
         lastAnnouncedTeamId.current = data.currentTeam.id
         currentTeamIdRef.current = data.currentTeam.id
         setWarningState('none')
         lastAnnouncedWarning.current = 'none'
         hasAutoSold.current = false
         lastBidCount.current = data.bids?.length ?? 0
-        if (!isFirstFetchAfterMountRef.current) {
+        const isNewTeam = prevTeamId !== data.currentTeam.id
+        if (isNewTeam && !isFirstFetchAfterMountRef.current) {
           addChatMessage({
             type: 'bot',
             message: `Now auctioning: ${data.currentTeam.name} - ${data.currentTeam.region} Region, Seed #${data.currentTeam.seed}`,
             timestamp: Date.now()
           })
         }
-      } else if (data.currentTeam) {
-        lastBidCount.current = data.bids?.length ?? 0
       }
       isFirstFetchAfterMountRef.current = false
 
@@ -405,10 +415,11 @@ export default function AuctionPage() {
           timestamp: Date.now()
         })
         
-        // Reset state for next team
+        // Reset state for next team (do NOT set lastAnnouncedTeamId = null here; the next
+        // fetch will see the new team id and we'll add one "Now auctioning" line. Setting
+        // it to null would let two concurrent fetches both add the same team.)
         lastAnnouncedWarning.current = 'none'
         setWarningState('none')
-        lastAnnouncedTeamId.current = null // Force re-announcement of next team
         lastBidCount.current = 0
         
         if (data.remainingTeams > 0) {

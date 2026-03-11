@@ -29,17 +29,31 @@ export async function POST() {
     })
     await prisma.owner.deleteMany()
 
-    // Reset auction state via raw SQL so it works with or without lastSale column (migration)
+    // Reset auction state
     const existingState = await prisma.auctionState.findFirst()
     if (existingState) {
-      await prisma.$executeRaw`UPDATE "AuctionState" SET "isActive" = false, "currentTeamId" = null, "currentBid" = 0, "currentBidder" = null, bids = '[]', "lastBidTime" = null WHERE id = ${existingState.id}`
-      try {
-        await prisma.$executeRaw`UPDATE "AuctionState" SET "lastSale" = null WHERE id = ${existingState.id}`
-      } catch {
-        // lastSale column may not exist yet
-      }
+      await prisma.auctionState.update({
+        where: { id: existingState.id },
+        data: {
+          isActive: false,
+          currentTeamId: null,
+          currentBid: 0,
+          currentBidder: null,
+          bids: '[]',
+          lastBidTime: null
+        }
+      })
     } else {
-      await prisma.$executeRaw`INSERT INTO "AuctionState" ("isActive", "currentTeamId", "currentBid", "currentBidder", bids, "lastBidTime", "updatedAt") VALUES (false, null, 0, null, '[]', null, NOW())`
+      await prisma.auctionState.create({
+        data: {
+          isActive: false,
+          currentTeamId: null,
+          currentBid: 0,
+          currentBidder: null,
+          bids: '[]',
+          lastBidTime: null
+        }
+      })
     }
 
     return NextResponse.json({ 

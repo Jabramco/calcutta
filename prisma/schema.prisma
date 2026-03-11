@@ -61,5 +61,6 @@ model AuctionState {
   currentBidder  String?
   bids           String   @default("[]") // JSON string of bids array
   lastBidTime    BigInt?
+  lastSale       String?  // JSON: { teamName, winner, amount } — so all clients can show SOLD
   updatedAt      DateTime @updatedAt
 }

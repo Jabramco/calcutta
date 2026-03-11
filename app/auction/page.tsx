@@ -47,6 +47,7 @@ export default function AuctionPage() {
   const currentTeamIdRef = useRef<number | null>(null)
   const lastAnnouncedTeamId = useRef<number | null>(null)
   const lastBidCount = useRef<number>(0)
+  const lastShownSaleTeamRef = useRef<string | null>(null)
   const hasAutoSold = useRef<boolean>(false)
   const auctionStateRef = useRef<AuctionState | null>(null)
   const isFirstFetchAfterMountRef = useRef<boolean>(true)
@@ -308,6 +309,17 @@ export default function AuctionPage() {
         })
       }
 
+      // Show SOLD from server lastSale so all clients see who won (not just the one who triggered sell)
+      const lastSale = data.lastSale
+      if (lastSale && lastSale.teamName && lastSale.winner != null && lastSale.teamName !== lastShownSaleTeamRef.current) {
+        lastShownSaleTeamRef.current = lastSale.teamName
+        addChatMessage({
+          type: 'sold',
+          message: `SOLD to ${lastSale.winner} for ${formatCurrency(lastSale.amount)}!`,
+          timestamp: Date.now()
+        })
+      }
+
       // Count remaining teams
       if (data.isActive && !data.currentTeam) {
         const teamsResponse = await fetch('/api/teams')
@@ -338,6 +350,7 @@ export default function AuctionPage() {
       if (response.ok) {
         // Clear chat history when starting fresh auction
         setChatMessages([])
+        lastShownSaleTeamRef.current = null
         localStorage.removeItem('auctionChatHistory')
         
         addChatMessage({
@@ -456,7 +469,8 @@ export default function AuctionPage() {
           message: `SOLD to ${state.currentBidder} for ${formatCurrency(state.currentBid || 0)}!`,
           timestamp: Date.now()
         })
-        
+        lastShownSaleTeamRef.current = state.currentTeam?.name ?? null
+
         // Reset state for next team (do NOT set lastAnnouncedTeamId = null here; the next
         // fetch will see the new team id and we'll add one "Now auctioning" line. Setting
         // it to null would let two concurrent fetches both add the same team.)
@@ -561,6 +575,7 @@ export default function AuctionPage() {
       if (response.ok) {
         // Clear chat history
         setChatMessages([])
+        lastShownSaleTeamRef.current = null
         localStorage.removeItem('auctionChatHistory')
         
         // Reset refs

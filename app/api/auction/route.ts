@@ -46,9 +46,11 @@ export async function GET() {
       })
     }
 
+    const lastSale = dbState.lastSale ? (() => { try { return JSON.parse(dbState.lastSale) } catch { return null } })() : null
     return NextResponse.json({
       ...state,
-      currentTeam
+      currentTeam,
+      lastSale
     })
   } catch (error: any) {
     console.error('Error fetching auction state:', error)
@@ -63,7 +65,8 @@ export async function GET() {
       currentBidder: null,
       bids: [],
       lastBidTime: null,
-      currentTeam: null
+      currentTeam: null,
+      lastSale: null
     })
   }
 }
@@ -177,9 +180,16 @@ export async function POST(request: Request) {
         if (!owner) {
           owner = await tx.owner.create({ data: { name: state.currentBidder! } })
         }
+        const soldTeam = await tx.team.findUnique({ where: { id: state.currentTeamId } })
         await tx.team.update({
           where: { id: state.currentTeamId },
           data: { ownerId: owner.id, cost: state.currentBid }
+        })
+
+        const lastSaleJson = JSON.stringify({
+          teamName: soldTeam?.name ?? 'Team',
+          winner: state.currentBidder,
+          amount: state.currentBid
         })
 
         const unassignedTeams = await tx.team.findMany({ where: { ownerId: null } })
@@ -194,7 +204,8 @@ export async function POST(request: Request) {
               currentBid: 0,
               currentBidder: null,
               bids: '[]',
-              lastBidTime: null
+              lastBidTime: null,
+              lastSale: lastSaleJson
             }
           })
         } else {
@@ -206,7 +217,8 @@ export async function POST(request: Request) {
               currentBid: 0,
               currentBidder: null,
               bids: '[]',
-              lastBidTime: null
+              lastBidTime: null,
+              lastSale: lastSaleJson
             }
           })
         }

@@ -46,6 +46,7 @@ export default function AuctionPage() {
   const lastBidCount = useRef<number>(0)
   const hasAutoSold = useRef<boolean>(false)
   const auctionStateRef = useRef<AuctionState | null>(null)
+  const isFirstFetchAfterMountRef = useRef<boolean>(true)
   const [isInitialized, setIsInitialized] = useState(false)
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false })
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -219,20 +220,27 @@ export default function AuctionPage() {
       const response = await fetch('/api/auction')
       const data = await response.json()
       
-      // Check if new team was announced - only announce if it's a truly new team ID
+      // Check if new team was announced - only announce if it's a truly new team ID.
+      // Skip adding chat message on first fetch after mount (user just navigated back) so we
+      // don't show two "Now auctioning" lines in a row (previous team from history + current).
       if (data.currentTeam && data.currentTeam.id !== lastAnnouncedTeamId.current) {
         lastAnnouncedTeamId.current = data.currentTeam.id
         currentTeamIdRef.current = data.currentTeam.id
         setWarningState('none')
         lastAnnouncedWarning.current = 'none'
         hasAutoSold.current = false
-        lastBidCount.current = 0
-        addChatMessage({
-          type: 'bot',
-          message: `Now auctioning: ${data.currentTeam.name} - ${data.currentTeam.region} Region, Seed #${data.currentTeam.seed}`,
-          timestamp: Date.now()
-        })
+        lastBidCount.current = data.bids?.length ?? 0
+        if (!isFirstFetchAfterMountRef.current) {
+          addChatMessage({
+            type: 'bot',
+            message: `Now auctioning: ${data.currentTeam.name} - ${data.currentTeam.region} Region, Seed #${data.currentTeam.seed}`,
+            timestamp: Date.now()
+          })
+        }
+      } else if (data.currentTeam) {
+        lastBidCount.current = data.bids?.length ?? 0
       }
+      isFirstFetchAfterMountRef.current = false
 
       // Check for new bids - only announce if bid count increased
       if (data.bids && data.bids.length > lastBidCount.current) {

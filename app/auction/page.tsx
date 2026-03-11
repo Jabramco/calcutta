@@ -48,6 +48,7 @@ export default function AuctionPage() {
   const auctionStateRef = useRef<AuctionState | null>(null)
   const isFirstFetchAfterMountRef = useRef<boolean>(true)
   const mountedAtRef = useRef<number>(Date.now())
+  const reconnectGraceUntilRef = useRef<number>(0)
   const [isInitialized, setIsInitialized] = useState(false)
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false })
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -170,11 +171,14 @@ export default function AuctionPage() {
       setCountdown(remaining)
 
       // Determine warning state and announce ONCE per state change.
-      // Don't auto-sell for 5s after mount so we don't sell immediately when returning to the page
-      // with stale server state (old lastBidTime would make elapsed already past 15s).
+      // Don't auto-sell: for 5s after mount, when tab is hidden, or for 5s after reconnect (stale state).
       const gracePeriodMs = 5000
+      const tabVisible = typeof document !== 'undefined' && document.visibilityState === 'visible'
+      const pastReconnectGrace = Date.now() > reconnectGraceUntilRef.current
       if (elapsed >= COUNTDOWN_INTERVAL * 3) {
         if (
+          tabVisible &&
+          pastReconnectGrace &&
           !hasAutoSold.current &&
           latest.currentBid > 0 &&
           latest.currentBidder &&
@@ -251,6 +255,15 @@ export default function AuctionPage() {
         }
       }
       isFirstFetchAfterMountRef.current = false
+
+      // If we just got state where countdown is already past 15s (e.g. we reconnected after being offline),
+      // don't auto-sell for 5s so we don't immediately fire sold on reconnect.
+      if (data.lastBidTime && data.bids?.length > 0 && data.currentBid > 0) {
+        const elapsed = Date.now() - Number(data.lastBidTime)
+        if (elapsed >= COUNTDOWN_INTERVAL * 3) {
+          reconnectGraceUntilRef.current = Date.now() + 5000
+        }
+      }
 
       // Check for new bids - only announce if bid count increased
       if (data.bids && data.bids.length > lastBidCount.current) {

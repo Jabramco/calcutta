@@ -141,119 +141,80 @@ export async function POST(request: Request) {
     }
 
     if (action === 'sold') {
-      if (!state.isActive || !state.currentTeamId) {
-        return NextResponse.json(
-          { error: 'No active auction' },
-          { status: 400 }
-        )
-      }
+      // Run sold in a transaction with row lock so two concurrent requests can't both advance.
+      const result = await prisma.$transaction(async (tx) => {
+        const rows = await tx.$queryRaw<Array<{ id: number; isActive: boolean; currentTeamId: number | null; currentBid: number; currentBidder: string | null; bids: string; lastBidTime: bigint | null }>>`SELECT id, "isActive", "currentTeamId", "currentBid", "currentBidder", bids, "lastBidTime" FROM "AuctionState" LIMIT 1 FOR UPDATE`
+        const lockedState = rows[0]
+        if (!lockedState) return { noOp: true, state: null, currentTeam: null, error: null, status: 400 }
 
-      // Idempotency: if there's no winning bid on this team, do not advance.
-      // Prevents double-advance when two clients both fire "sold" (e.g. countdown expired on both).
-      const hasWinningBid = state.currentBidder && state.currentBid > 0
-      if (!hasWinningBid) {
-        const currentState = parseState(dbState)
-        let currentTeam = null
-        if (state.currentTeamId) {
-          currentTeam = await prisma.team.findUnique({
-            where: { id: state.currentTeamId }
-          })
+        const state = parseState(lockedState)
+        if (!state.isActive || !state.currentTeamId) {
+          return { noOp: true, state: null, currentTeam: null, error: 'No active auction', status: 400 }
         }
-        return NextResponse.json({
-          success: true,
-          state: { ...currentState, currentTeam },
-          noOp: true
-        })
-      }
 
-      // Require the last bid to be at least 2s ago so other clients have time to poll and see it.
-      // Prevents one client selling before others see the bid (avoids "two teams with no bid" confusion).
-      const MIN_BID_AGE_MS = 2000
-      const lastBidTimeMs = state.lastBidTime != null ? Number(state.lastBidTime) : 0
-      if (Date.now() - lastBidTimeMs < MIN_BID_AGE_MS) {
-        const currentState = parseState(dbState)
-        let currentTeam = null
-        if (state.currentTeamId) {
-          currentTeam = await prisma.team.findUnique({
-            where: { id: state.currentTeamId }
-          })
+        const hasWinningBid = state.currentBidder && state.currentBid > 0
+        if (!hasWinningBid) {
+          const currentTeam = await tx.team.findUnique({ where: { id: state.currentTeamId } })
+          return { noOp: true, state: { ...state, currentTeam }, currentTeam, error: null, status: 200 }
         }
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Please wait a moment before selling so others can see the bid.',
-            state: { ...currentState, currentTeam },
-            noOp: true
-          },
-          { status: 400 }
-        )
-      }
 
-      if (state.currentBidder && state.currentBid > 0) {
-        // Find or create owner
-        let owner = await prisma.owner.findFirst({
-          where: { name: state.currentBidder }
-        })
+        const MIN_BID_AGE_MS = 2000
+        const lastBidTimeMs = state.lastBidTime != null ? Number(state.lastBidTime) : 0
+        if (Date.now() - lastBidTimeMs < MIN_BID_AGE_MS) {
+          const currentTeam = await tx.team.findUnique({ where: { id: state.currentTeamId } })
+          return { noOp: true, state: { ...state, currentTeam }, currentTeam, error: 'Please wait a moment before selling so others can see the bid.', status: 400 }
+        }
 
+        let owner = await tx.owner.findFirst({ where: { name: state.currentBidder! } })
         if (!owner) {
-          owner = await prisma.owner.create({
-            data: { name: state.currentBidder }
-          })
-          console.log('Created owner:', owner)
+          owner = await tx.owner.create({ data: { name: state.currentBidder! } })
         }
-
-        // Assign team to winner
-        const updatedTeam = await prisma.team.update({
+        await tx.team.update({
           where: { id: state.currentTeamId },
-          data: {
-            ownerId: owner.id,
-            cost: state.currentBid
-          }
+          data: { ownerId: owner.id, cost: state.currentBid }
         })
-        console.log('Updated team:', updatedTeam.name, 'to owner:', owner.name, 'for $', state.currentBid)
-      }
 
-      // Check if more teams remain
-      const unassignedTeams = await prisma.team.findMany({
-        where: { ownerId: null }
+        const unassignedTeams = await tx.team.findMany({ where: { ownerId: null } })
+        let updatedDbState
+        if (unassignedTeams.length > 0) {
+          const randomTeam = unassignedTeams[Math.floor(Math.random() * unassignedTeams.length)]
+          updatedDbState = await tx.auctionState.update({
+            where: { id: lockedState.id },
+            data: {
+              isActive: true,
+              currentTeamId: randomTeam.id,
+              currentBid: 0,
+              currentBidder: null,
+              bids: '[]',
+              lastBidTime: null
+            }
+          })
+        } else {
+          updatedDbState = await tx.auctionState.update({
+            where: { id: lockedState.id },
+            data: {
+              isActive: false,
+              currentTeamId: null,
+              currentBid: 0,
+              currentBidder: null,
+              bids: '[]',
+              lastBidTime: null
+            }
+          })
+        }
+        return { noOp: false, state: parseState(updatedDbState), remainingTeams: unassignedTeams.length, error: null, status: 200 }
       })
 
-      let updatedDbState
-      if (unassignedTeams.length > 0) {
-        // Automatically select next random team
-        const randomTeam = unassignedTeams[Math.floor(Math.random() * unassignedTeams.length)]
-        
-        updatedDbState = await prisma.auctionState.update({
-          where: { id: dbState.id },
-          data: {
-            isActive: true,
-            currentTeamId: randomTeam.id,
-            currentBid: 0,
-            currentBidder: null,
-            bids: '[]',
-            lastBidTime: null // Timer starts after first bid
-          }
-        })
-      } else {
-        // Auction complete
-        updatedDbState = await prisma.auctionState.update({
-          where: { id: dbState.id },
-          data: {
-            isActive: false,
-            currentTeamId: null,
-            currentBid: 0,
-            currentBidder: null,
-            bids: '[]',
-            lastBidTime: null
-          }
-        })
+      if (result.error && result.status === 400) {
+        return NextResponse.json({ success: false, error: result.error, state: result.state, noOp: true }, { status: 400 })
       }
-
-      return NextResponse.json({ 
-        success: true, 
-        state: parseState(updatedDbState),
-        remainingTeams: unassignedTeams.length
-      })
+      if (result.noOp && result.state) {
+        return NextResponse.json({ success: true, state: result.state, noOp: true })
+      }
+      if (result.noOp) {
+        return NextResponse.json({ error: result.error || 'No active auction' }, { status: result.status || 400 })
+      }
+      return NextResponse.json({ success: true, state: result.state, remainingTeams: result.remainingTeams })
     }
 
     if (action === 'stop') {

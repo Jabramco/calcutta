@@ -46,10 +46,11 @@ export async function POST() {
       success: true,
       message: 'Auction restarted successfully'
     })
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error restarting auction:', error)
+    const message = error instanceof Error ? error.message : 'Failed to restart auction'
     return NextResponse.json(
-      { error: 'Failed to restart auction' },
+      { error: message },
       { status: 500 }
     )
   }

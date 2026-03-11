@@ -359,9 +359,13 @@ export default function AuctionPage() {
           timestamp: Date.now()
         })
         await fetchAuctionState()
+      } else {
+        const data = await response.json().catch(() => ({}))
+        showToast(data?.error || 'Failed to start auction')
       }
     } catch (error) {
       console.error('Error starting auction:', error)
+      showToast('Failed to start auction')
     } finally {
       setLoading(false)
     }
@@ -595,12 +599,12 @@ export default function AuctionPage() {
         await fetchAuctionState()
         await fetchStats()
       } else {
-        const data = await response.json()
-        alert(data.error || 'Failed to restart auction')
+        const data = await response.json().catch(() => ({}))
+        showToast(data?.error || 'Failed to restart auction')
       }
     } catch (error) {
       console.error('Error restarting auction:', error)
-      alert('Failed to restart auction')
+      showToast('Failed to restart auction')
     } finally {
       setLoading(false)
     }

@@ -724,8 +724,8 @@ export default function AuctionPage() {
           </div>
 
         {/* Chat & Bidding */}
-        <div className="lg:col-span-2">
-          <div className="glass-card rounded-2xl flex flex-col" style={{ height: '600px' }}>
+        <div className="lg:col-span-2 flex flex-col min-h-0">
+          <div className="glass-card rounded-2xl flex flex-col h-[600px] lg:h-[calc(100vh-8rem)] min-h-[400px]">
             <div className="p-4 border-b border-[#2a2a38]">
               <h2 className="text-xl font-semibold text-white">Auction Chat</h2>
             </div>

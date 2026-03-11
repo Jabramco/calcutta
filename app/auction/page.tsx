@@ -42,6 +42,8 @@ export default function AuctionPage() {
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null)
   const lastAnnouncedWarning = useRef<'none' | 'once' | 'twice'>('none')
   const lastAnnouncedBucketRef = useRef<number>(0) // 0=none, 1=once, 2=twice — only add chat when we enter a new bucket
+  const lastDisplayedSecondsRef = useRef<number>(-1)
+  const lastSetWarningStateRef = useRef<'none' | 'once' | 'twice'>('none')
   const currentTeamIdRef = useRef<number | null>(null)
   const lastAnnouncedTeamId = useRef<number | null>(null)
   const lastBidCount = useRef<number>(0)
@@ -148,6 +150,7 @@ export default function AuctionPage() {
       currentTeamIdRef.current = auctionState.currentTeam.id
       lastAnnouncedWarning.current = 'none'
       lastAnnouncedBucketRef.current = 0
+      lastSetWarningStateRef.current = 'none'
       setWarningState('none')
       hasAutoSold.current = false
     }
@@ -170,7 +173,11 @@ export default function AuctionPage() {
       const now = Date.now()
       const elapsed = now - latest.lastBidTime
       const remaining = COUNTDOWN_INTERVAL - (elapsed % COUNTDOWN_INTERVAL)
-      setCountdown(remaining)
+      const seconds = Math.ceil(remaining / 1000)
+      if (seconds !== lastDisplayedSecondsRef.current) {
+        lastDisplayedSecondsRef.current = seconds
+        setCountdown(remaining)
+      }
 
       // Determine warning state and announce ONCE per state change.
       // Don't auto-sell: for 5s after mount, when tab is hidden, or for 5s after reconnect (stale state).
@@ -192,6 +199,7 @@ export default function AuctionPage() {
       } else if (elapsed >= COUNTDOWN_INTERVAL * 2) {
         if (lastAnnouncedBucketRef.current < 2) {
           lastAnnouncedBucketRef.current = 2
+          lastSetWarningStateRef.current = 'twice'
           setWarningState('twice')
           lastAnnouncedWarning.current = 'twice'
           addChatMessage({
@@ -199,13 +207,15 @@ export default function AuctionPage() {
             message: 'Going TWICE!',
             timestamp: Date.now()
           })
-        } else {
+        } else if (lastSetWarningStateRef.current !== 'twice') {
+          lastSetWarningStateRef.current = 'twice'
           setWarningState('twice')
           lastAnnouncedWarning.current = 'twice'
         }
       } else if (elapsed >= COUNTDOWN_INTERVAL) {
         if (lastAnnouncedBucketRef.current < 1) {
           lastAnnouncedBucketRef.current = 1
+          lastSetWarningStateRef.current = 'once'
           setWarningState('once')
           lastAnnouncedWarning.current = 'once'
           addChatMessage({
@@ -213,13 +223,15 @@ export default function AuctionPage() {
             message: 'Going once!',
             timestamp: Date.now()
           })
-        } else {
+        } else if (lastSetWarningStateRef.current !== 'once') {
+          lastSetWarningStateRef.current = 'once'
           setWarningState('once')
           lastAnnouncedWarning.current = 'once'
         }
       } else if (elapsed < 1000) {
         if (lastAnnouncedBucketRef.current > 0) {
           lastAnnouncedBucketRef.current = 0
+          lastSetWarningStateRef.current = 'none'
           setWarningState('none')
           lastAnnouncedWarning.current = 'none'
           hasAutoSold.current = false
@@ -356,9 +368,13 @@ export default function AuctionPage() {
           timestamp: Date.now()
         })
         await fetchAuctionState()
+      } else {
+        const data = await response.json().catch(() => ({}))
+        showToast(data?.error || 'Could not advance to next team')
       }
     } catch (error) {
       console.error('Error getting next team:', error)
+      showToast('Error getting next team')
     } finally {
       setLoading(false)
     }

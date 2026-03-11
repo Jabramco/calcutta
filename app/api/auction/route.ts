@@ -77,6 +77,14 @@ export async function POST(request: Request) {
     let state = parseState(dbState)
 
     if (action === 'start' || action === 'next') {
+      // 'next' only when no team is currently being auctioned (don't skip a team without selling)
+      if (action === 'next' && state.currentTeamId != null) {
+        return NextResponse.json(
+          { error: 'A team is currently being auctioned. Use Sold after a bid, or wait for the countdown.' },
+          { status: 400 }
+        )
+      }
+
       // Get all unassigned teams
       const unassignedTeams = await prisma.team.findMany({
         where: { ownerId: null }

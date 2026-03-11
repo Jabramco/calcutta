@@ -580,16 +580,19 @@ export default function AuctionPage() {
         <div className="orb orb-1"></div>
       </div>
 
-      <div className="container mx-auto px-4 py-8 glass-content">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-white">Live Auction</h1>
-        <div className="text-right">
-          <div className="text-sm text-[#a0a0b8]">Current Prize Pool</div>
-          <div className="text-2xl font-bold text-[#00ceb8]">{formatCurrency(totalPot ?? 0)}</div>
+      {/* On desktop: constrain to viewport so chat fits without page scroll (nav ~5rem) */}
+      <div className="flex flex-col lg:h-[calc(100vh-5rem)] min-h-0 lg:overflow-hidden glass-content">
+        <div className="container mx-auto px-4 pt-6 pb-4 flex-shrink-0">
+          <div className="flex justify-between items-center">
+            <h1 className="text-3xl font-bold text-white">Live Auction</h1>
+            <div className="text-right">
+              <div className="text-sm text-[#a0a0b8]">Current Prize Pool</div>
+              <div className="text-2xl font-bold text-[#00ceb8]">{formatCurrency(totalPot ?? 0)}</div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="container mx-auto px-4 flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6 pb-6">
         {/* Current Team Card */}
         <div className="lg:col-span-1">
           <h2 className="text-xl font-semibold mb-4 text-white">Current Team</h2>
@@ -724,8 +727,8 @@ export default function AuctionPage() {
           </div>
 
         {/* Chat & Bidding */}
-        <div className="lg:col-span-2 flex flex-col min-h-0">
-          <div className="glass-card rounded-2xl flex flex-col h-[600px] lg:h-[calc(100vh-8rem)] min-h-[400px]">
+        <div className="lg:col-span-2 flex flex-col min-h-[400px] lg:min-h-0">
+          <div className="glass-card rounded-2xl flex flex-col min-h-[400px] lg:min-h-0 lg:flex-1 overflow-hidden">
             <div className="p-4 border-b border-[#2a2a38]">
               <h2 className="text-xl font-semibold text-white">Auction Chat</h2>
             </div>

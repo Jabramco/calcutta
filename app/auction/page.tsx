@@ -172,7 +172,9 @@ export default function AuctionPage() {
     const interval = setInterval(() => {
       const latest = auctionStateRef.current
       if (!latest?.bids || latest.bids.length === 0 || !latest.lastBidTime) return
-      if (latest.currentTeam?.id !== currentTeamIdRef.current) return // team changed, don't act on old team
+      // Only skip if we're sure state is for a different team (ref was updated by a poll showing next team)
+      const refTeam = currentTeamIdRef.current
+      if (refTeam != null && latest.currentTeam?.id != null && refTeam !== latest.currentTeam.id) return
 
       const now = Date.now()
       const elapsed = now - latest.lastBidTime
@@ -511,22 +513,27 @@ export default function AuctionPage() {
     }
   }
 
+  const SOLD_REQUEST_TIMEOUT_MS = 12000
+
   const autoSoldTeam = async () => {
     const state = auctionStateRef.current
     if (!state?.currentBidder || state.currentBid === 0) return
     if (!state?.bids || state.bids.length === 0) return
-    if (loading) return // Prevent concurrent sells
-    if (hasAutoSold.current) return // Already sold this team
+    if (hasAutoSold.current) return // Already sold this team (prevents double-send)
 
-    // Prevent double-selling
-    hasAutoSold.current = true // Mark as sold immediately
+    // Prevent double-selling: claim immediately so interval doesn't call again
+    hasAutoSold.current = true
     setLoading(true)
-    
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), SOLD_REQUEST_TIMEOUT_MS)
+
     try {
       const response = await fetch('/api/auction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sold' })
+        body: JSON.stringify({ action: 'sold' }),
+        signal: controller.signal
       })
 
       if (response.ok) {
@@ -575,9 +582,12 @@ export default function AuctionPage() {
         await fetchAuctionState()
       }
     } catch (error) {
-      console.error('Error selling team:', error)
-      hasAutoSold.current = false // Reset on error
+      const isAbort = error instanceof Error && error.name === 'AbortError'
+      if (isAbort) console.warn('Sell request timed out; will retry on next interval')
+      else console.error('Error selling team:', error)
+      hasAutoSold.current = false // Allow interval to retry
     } finally {
+      clearTimeout(timeoutId)
       setLoading(false)
     }
   }

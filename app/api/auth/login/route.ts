@@ -6,7 +6,9 @@ import { serialize } from 'cookie'
 
 export async function POST(request: Request) {
   try {
-    const { username, password } = await request.json()
+    const body = await request.json()
+    const username = typeof body.username === 'string' ? body.username.trim() : ''
+    const password = typeof body.password === 'string' ? body.password : ''
 
     // Validation
     if (!username || !password) {
@@ -16,9 +18,9 @@ export async function POST(request: Request) {
       )
     }
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { username }
+    // Find user (case-insensitive username so "Admin" and "admin" both work)
+    const user = await prisma.user.findFirst({
+      where: { username: { equals: username, mode: 'insensitive' } }
     })
 
     if (!user) {

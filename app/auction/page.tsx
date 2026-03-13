@@ -55,6 +55,7 @@ export default function AuctionPage() {
   const isFirstFetchAfterMountRef = useRef<boolean>(true)
   const mountedAtRef = useRef<number>(Date.now())
   const reconnectGraceUntilRef = useRef<number>(0)
+  const reconnectGraceSetForTeamRef = useRef<number | null>(null) // only set grace once per team so it can expire
   const [isInitialized, setIsInitialized] = useState(false)
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false })
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -175,7 +176,8 @@ export default function AuctionPage() {
 
       const now = Date.now()
       const elapsed = now - latest.lastBidTime
-      const remaining = COUNTDOWN_INTERVAL - (elapsed % COUNTDOWN_INTERVAL)
+      const pastSellTime = elapsed >= COUNTDOWN_INTERVAL * 3
+      const remaining = pastSellTime ? 0 : COUNTDOWN_INTERVAL - (elapsed % COUNTDOWN_INTERVAL)
       const seconds = Math.ceil(remaining / 1000)
       if (seconds !== lastDisplayedSecondsRef.current) {
         lastDisplayedSecondsRef.current = seconds
@@ -372,12 +374,17 @@ export default function AuctionPage() {
         hasAutoSold.current = false
       }
 
-      // If we just got state where countdown is already past 15s (e.g. we reconnected after being offline),
-      // don't auto-sell for 5s so we don't immediately fire sold on reconnect.
-      if (data.lastBidTime && data.bids?.length > 0 && data.currentBid > 0) {
+      // If we just got state where countdown is already past sell time (e.g. we reconnected after being offline),
+      // don't auto-sell for 5s so we don't immediately fire sold on reconnect. Only set grace ONCE per team
+      // so it can expire and we actually sell (fixes "stuck" countdown when returning to tab).
+      if (data.currentTeam?.id != null && reconnectGraceSetForTeamRef.current !== null && reconnectGraceSetForTeamRef.current !== data.currentTeam.id) {
+        reconnectGraceSetForTeamRef.current = null // new team, allow setting grace again if they return later
+      }
+      if (data.lastBidTime && data.bids?.length > 0 && data.currentBid > 0 && data.currentTeam?.id != null) {
         const elapsed = Date.now() - Number(data.lastBidTime)
-        if (elapsed >= COUNTDOWN_INTERVAL * 3) {
+        if (elapsed >= COUNTDOWN_INTERVAL * 3 && reconnectGraceSetForTeamRef.current !== data.currentTeam.id) {
           reconnectGraceUntilRef.current = Date.now() + 5000
+          reconnectGraceSetForTeamRef.current = data.currentTeam.id
         }
       }
 

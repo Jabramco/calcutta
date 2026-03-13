@@ -79,6 +79,19 @@ When prompted, enter the username you want to make admin (e.g. the one you signe
 
 Your app will be available at: `https://your-project-name.vercel.app`
 
+## After a new database (e.g. switching to Neon)
+
+**Tell everyone to create new usernames.** User accounts live in the database. If you switched DBs (e.g. from Prisma Postgres to Neon), the new DB has no old users—everyone signs up again once. You can keep using the seeded `admin` / `admin123` or have people register on the app.
+
+## Keeping the app running (avoiding lockouts)
+
+- **Do not re-add the "Prisma Postgres" integration** in Vercel. The app uses standard env vars and Neon (or any Postgres); that integration was what caused provisioning failures.
+- **Do not remove or change** `DATABASE_URL`, `DIRECT_DATABASE_URL`, or `JWT_SECRET` in Vercel unless you are intentionally moving to a new database.
+- **Keep a backup of your Neon connection string** (e.g. in a password manager or secure note). If Vercel env vars were ever lost, you could re-add them and redeploy without losing the database.
+- **Neon free tier:** Stay within [Neon’s limits](https://neon.tech/docs/introduction/usage-based-pricing). If you outgrow free, upgrade the Neon plan or switch to another Postgres host and update the env vars; then run `npx prisma db push` (and optionally migrate data) from your machine with the new URL in `.env`.
+
+If you ever point the app at a **new** database again, you’ll need to run `npx prisma db push` and `npm run seed` (and have everyone create new accounts) as in Step 5 above.
+
 ## Automatic Deployments
 
 From now on, every time you push to the `main` branch on GitHub, Vercel will automatically deploy your changes.

@@ -163,39 +163,48 @@ export async function POST(request: Request) {
     }
 
     if (action === 'bid') {
-      if (!state.isActive || !state.currentTeamId) {
-        return NextResponse.json(
-          { error: 'No active auction' },
-          { status: 400 }
-        )
+      const bidAmount = typeof amount === 'number' ? amount : parseFloat(amount)
+      if (typeof bidder !== 'string' || !bidder.trim()) {
+        return NextResponse.json({ error: 'Bidder is required' }, { status: 400 })
       }
-
-      if (amount <= state.currentBid) {
-        return NextResponse.json(
-          { error: 'Bid must be higher than current bid' },
-          { status: 400 }
-        )
+      if (Number.isNaN(bidAmount) || bidAmount <= 0) {
+        return NextResponse.json({ error: 'Valid bid amount is required' }, { status: 400 })
       }
-
-      const now = Date.now()
-      const newBid = { bidder, amount, timestamp: now }
-      state.bids.push(newBid)
-
-      // Update state in database
-      const updatedDbState = await prisma.auctionState.update({
-        where: { id: dbState.id },
-        data: {
-          currentBid: amount,
-          currentBidder: bidder,
-          bids: JSON.stringify(state.bids),
-          lastBidTime: BigInt(now)
-        }
-      })
-
+      // Serialize bids with a transaction + row lock so 20 concurrent bidders can't overwrite each other
       const formatCurrency = (n: number) => `$${Number(n).toFixed(2)}`
-      await appendAuctionEvent(prisma, { type: 'bid', message: `${bidder} bids ${formatCurrency(amount)}!`, timestamp: now, bidder, amount })
+      const now = Date.now()
+      try {
+        const updatedDbState = await prisma.$transaction(async (tx) => {
+          const rows = await tx.$queryRaw<Array<{ id: number; isActive: boolean; currentTeamId: number | null; currentBid: number; currentBidder: string | null; bids: string; lastBidTime: bigint | null }>>`SELECT id, "isActive", "currentTeamId", "currentBid", "currentBidder", bids, "lastBidTime" FROM "AuctionState" LIMIT 1 FOR UPDATE`
+          const locked = rows[0]
+          if (!locked) throw new Error('NO_STATE')
 
-      return NextResponse.json({ success: true, state: parseState(updatedDbState) })
+          const lockedState = parseState(locked)
+          if (!lockedState.isActive || !lockedState.currentTeamId) throw new Error('NO_ACTIVE_AUCTION')
+          if (bidAmount <= lockedState.currentBid) throw new Error('BID_TOO_LOW')
+
+          const newBid = { bidder: bidder.trim(), amount: bidAmount, timestamp: now }
+          const bids = [...lockedState.bids, newBid]
+          const updated = await tx.auctionState.update({
+            where: { id: locked.id },
+            data: {
+              currentBid: bidAmount,
+              currentBidder: bidder.trim(),
+              bids: JSON.stringify(bids),
+              lastBidTime: BigInt(now)
+            }
+          })
+          await appendAuctionEvent(tx, { type: 'bid', message: `${bidder.trim()} bids ${formatCurrency(bidAmount)}!`, timestamp: now, bidder: bidder.trim(), amount: bidAmount })
+          return updated
+        })
+        return NextResponse.json({ success: true, state: parseState(updatedDbState) })
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (msg === 'BID_TOO_LOW') return NextResponse.json({ error: 'Bid must be higher than current bid' }, { status: 400 })
+        if (msg === 'NO_ACTIVE_AUCTION') return NextResponse.json({ error: 'No active auction' }, { status: 400 })
+        if (msg === 'NO_STATE') return NextResponse.json({ error: 'No active auction' }, { status: 400 })
+        throw e
+      }
     }
 
     if (action === 'sold') {

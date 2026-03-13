@@ -12,67 +12,68 @@ This guide will help you deploy the NCAA Calcutta Auction app to Vercel with a P
 2. Import your GitHub repository: `Jabramco/calcutta`
 3. Vercel will automatically detect it's a Next.js project
 
-## Step 2: Add Vercel Postgres Database
+## Step 2: Database and environment variables
 
-1. After importing, **before** clicking Deploy, go to the "Storage" tab
-2. Click "Create" → "Postgres"
-3. Name it `calcutta-db` (or any name you prefer)
-4. Click "Create"
-5. Vercel will automatically add the `DATABASE_URL` environment variable
+The app uses **standard** env var names (see `.env.example`). It does **not** require the "Prisma Postgres" integration—that integration is what’s failing for you.
 
-## Step 3: Add Environment Variables
+**Required env vars:**
 
-In the Vercel project settings → Environment Variables, add:
+- `DATABASE_URL` – PostgreSQL connection string
+- `DIRECT_DATABASE_URL` – Same URL (or your provider’s “direct” URL if they give two)
+- `JWT_SECRET` – Random secret for JWT (e.g. [randomkeygen.com](https://randomkeygen.com/))
 
-### Required Variables:
-- `DATABASE_URL` - (automatically added by Vercel Postgres)
-- `JWT_SECRET` - Generate a random secret string (e.g., use [https://randomkeygen.com/](https://randomkeygen.com/))
-- `NODE_ENV` - Set to `production`
+**If “Prisma Postgres” (prisma-postgres-calcutta) is failing:**
 
-### Example:
-```
-JWT_SECRET=your-super-secret-random-string-here-change-this
-NODE_ENV=production
-```
+1. In Vercel → your project → **Settings → Integrations**, remove or disconnect the **Prisma Postgres** integration so deploys no longer try to provision it.
+2. Add a database another way:
+   - **Neon** (free): [neon.tech](https://neon.tech) → Create project → copy the connection string.
+   - **Vercel Postgres** (no Prisma): In the project, Storage → Create → **Postgres** (the regular one, not “Prisma Postgres”). It will set `POSTGRES_URL`; in Environment Variables add `DATABASE_URL` and `DIRECT_DATABASE_URL` both set to that same value.
+   - **Supabase / Railway / etc.**: Create a Postgres DB, copy the URL, set `DATABASE_URL` and `DIRECT_DATABASE_URL` to it (same value if you only have one).
+3. In **Settings → Environment Variables** set:
+   - `DATABASE_URL` = your Postgres URL
+   - `DIRECT_DATABASE_URL` = same URL (or direct URL if you have two)
+   - `JWT_SECRET` = a long random string
+4. Redeploy.
+
+## Step 3: Confirm env vars
+
+In Vercel → Settings → Environment Variables, you should have:
+
+- `DATABASE_URL`
+- `DIRECT_DATABASE_URL`
+- `JWT_SECRET`
 
 ## Step 4: Deploy
 
 1. Click "Deploy"
 2. Wait for the build to complete (2-3 minutes)
 
-## Step 5: Set Up Database
+## Step 5: Set up the database
 
-After the first deployment:
+After the first deployment, run migrations and seed from your machine using the same Postgres URL as in Vercel:
 
-1. Go to your Vercel project → Settings → Storage
-2. Click on your Postgres database
-3. Go to the ".env.local" tab and copy the `DATABASE_URL`
-4. Run the following commands locally:
+1. Get your connection string from your provider (Vercel Storage → your DB → .env tab, or Neon/Supabase/etc.).
+2. In the project root, create a `.env` with:
+   - `DATABASE_URL` = your Postgres URL
+   - `DIRECT_DATABASE_URL` = same URL (or direct URL if different)
+   - `JWT_SECRET` = any long random string
+3. Run:
 
 ```bash
-# Set the DATABASE_URL environment variable temporarily
-export DATABASE_URL="your-vercel-postgres-url-here"
-
-# Generate Prisma client for PostgreSQL
 npx prisma generate
-
-# Push the schema to the database
 npx prisma db push
-
-# Seed the database
 npm run seed
 ```
 
-## Step 6: Create Your Admin Account
+## Step 6: Create your admin account
 
-After seeding, create your admin user:
+After seeding:
 
 ```bash
-# Still using the DATABASE_URL from step 5
 npx tsx scripts/make-admin.ts
 ```
 
-When prompted, enter: `justin`
+When prompted, enter the username you want to make admin (e.g. the one you signed up with). The seed creates `admin` / `admin123`; you can use that or create a user via the app and then run this script.
 
 ## Your App is Live! 🎉
 
@@ -90,31 +91,31 @@ You can also use this one-click deploy:
 
 ## Troubleshooting
 
-### Build Errors
-- Make sure all environment variables are set
-- Check the build logs in Vercel dashboard
+### "Provisioning integrations failed" / Prisma Postgres "Installation" failing
+Deployment fails when the **Prisma Postgres** integration (e.g. prisma-postgres-calcutta) can’t install or provision. **Fix:** Remove the Prisma Postgres integration from the project (Settings → Integrations). Add a different Postgres (Neon, or Vercel’s regular Postgres, or Supabase). Set `DATABASE_URL`, `DIRECT_DATABASE_URL`, and `JWT_SECRET` in Environment Variables. Redeploy. The app no longer requires the Prisma Postgres integration.
 
-### Database Connection Issues
-- Verify `DATABASE_URL` is set correctly
-- Make sure you ran `prisma db push` after deployment
+### Build errors
+- Ensure all required env vars are set (see `.env.example`).
+- Check the build logs in the Vercel dashboard.
 
-### Admin Access
-- After seeding, make sure to run the `make-admin.ts` script with your Vercel database URL
+### Database connection issues
+- Verify `DATABASE_URL` and `DIRECT_DATABASE_URL` in Vercel.
+- Run `npx prisma db push` (and seed) locally with the same URLs in `.env`.
 
-## Local Development with Production Database
+### Admin access
+- Run `npx tsx scripts/make-admin.ts` with the same env vars to promote a user to admin.
 
-If you want to develop locally but use the production database:
+## Local development with production database
 
-```bash
-# Add to your local .env file
-DATABASE_URL="your-vercel-postgres-url"
+In `.env`:
+
+```
+DATABASE_URL="your-postgres-url"
+DIRECT_DATABASE_URL="your-postgres-url"
 JWT_SECRET="same-as-production"
 ```
 
-Then run:
-```bash
-npm run dev
-```
+Then run `npm run dev`.
 
 ---
 

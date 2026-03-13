@@ -113,9 +113,10 @@ npm install
 ```
 
 3. Set up environment variables:
-Create a `.env` file in the root directory:
+Create a `.env` file in the root directory (see `.env.example`):
 ```env
 DATABASE_URL="postgresql://user:password@localhost:5432/calcutta"
+DIRECT_DATABASE_URL="postgresql://user:password@localhost:5432/calcutta"
 JWT_SECRET="your-secret-key-change-in-production"
 NODE_ENV="development"
 ```
@@ -333,10 +334,11 @@ Your app will be live at `https://your-project.vercel.app`
 
 ## Environment Variables
 
-Required environment variables:
+Required (see `.env.example`):
 - `DATABASE_URL` - PostgreSQL connection string
+- `DIRECT_DATABASE_URL` - Same URL (or direct connection URL if your provider gives two)
 - `JWT_SECRET` - Secret key for JWT token generation
-- `NODE_ENV` - Environment (development/production)
+- `NODE_ENV` - Optional (development/production)
 
 ## License
 

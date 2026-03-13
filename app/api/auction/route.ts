@@ -125,9 +125,15 @@ export async function POST(request: Request) {
         )
       }
 
-      // Get all unassigned teams
+      // Unassigned = seeds 1–13 or Dogs (exclude member teams 14/15/16)
       const unassignedTeams = await prisma.team.findMany({
-        where: { ownerId: null }
+        where: {
+          ownerId: null,
+          OR: [
+            { isDogs: true },
+            { seed: { gte: 1, lte: 13 }, dogTeamId: null }
+          ]
+        }
       })
 
       if (unassignedTeams.length === 0) {
@@ -253,7 +259,15 @@ export async function POST(request: Request) {
           update: { value: lastSaleJson }
         })
 
-        const unassignedTeams = await tx.team.findMany({ where: { ownerId: null } })
+        const unassignedTeams = await tx.team.findMany({
+          where: {
+            ownerId: null,
+            OR: [
+              { isDogs: true },
+              { seed: { gte: 1, lte: 13 }, dogTeamId: null }
+            ]
+          }
+        })
         const formatCurrency = (n: number) => `$${Number(n).toFixed(2)}`
         const now = Date.now()
         await appendAuctionEvent(tx, { type: 'sold', message: `SOLD to ${state.currentBidder} for ${formatCurrency(state.currentBid)}!`, timestamp: now })

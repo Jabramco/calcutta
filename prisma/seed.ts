@@ -67,38 +67,65 @@ async function main() {
   })
   console.log('Created initial auction state')
 
-  // Create teams only (no owners assigned yet - that happens during auction)
-  const teamsData = []
+  // Create teams: 13 seeds + 1 Dogs + 3 member teams (14,15,16) per region = 14 displayable + 3 for bracket import
   let teamIndex = 0
+  const defaultRounds = {
+    round64: false,
+    round32: false,
+    sweet16: false,
+    elite8: false,
+    final4: false,
+    championship: false
+  }
 
   for (const region of regions) {
-    for (let seed = 1; seed <= 16; seed++) {
-      teamsData.push({
-        name: teamNames[teamIndex],
+    // Seeds 1–13: normal auctionable teams
+    for (let seed = 1; seed <= 13; seed++) {
+      await prisma.team.create({
+        data: {
+          name: teamNames[teamIndex],
+          region,
+          seed,
+          ownerId: null,
+          cost: 0,
+          ...defaultRounds
+        }
+      })
+      teamIndex++
+    }
+
+    // Dogs aggregate (seeds 14–16 combined): "Dogs {Region}"
+    const dogsTeam = await prisma.team.create({
+      data: {
+        name: `Dogs ${region}`,
         region,
-        seed,
+        seed: 14,
         ownerId: null,
         cost: 0,
-        round64: false,
-        round32: false,
-        sweet16: false,
-        elite8: false,
-        final4: false,
-        championship: false
+        isDogs: true,
+        ...defaultRounds
+      }
+    })
+
+    // Seeds 14, 15, 16 as members (for bracket import only; not shown in teams list or auction)
+    for (let s = 14; s <= 16; s++) {
+      await prisma.team.create({
+        data: {
+          name: teamNames[teamIndex],
+          region,
+          seed: s,
+          ownerId: null,
+          cost: 0,
+          dogTeamId: dogsTeam.id,
+          ...defaultRounds
+        }
       })
-      
       teamIndex++
     }
   }
 
-  // Create all teams
-  for (const teamData of teamsData) {
-    await prisma.team.create({
-      data: teamData
-    })
-  }
-
-  console.log(`Created ${teamsData.length} teams (ready for auction)`)
+  const totalTeams = await prisma.team.count()
+  console.log(`Created ${totalTeams} teams (14 per region: seeds 1–13 + Dogs; members 14/15/16 for import)`)
 
   // Create settings if needed
   await prisma.settings.create({

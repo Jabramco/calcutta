@@ -43,6 +43,10 @@ model Team {
   elite8        Boolean  @default(false)
   final4        Boolean  @default(false)
   championship  Boolean  @default(false)
+  isDogs        Boolean  @default(false)   // true = "Dogs {region}" aggregate (seeds 14–16)
+  dogTeamId     Int?                       // if set, this team is seed 14/15/16 and belongs to Dogs team
+  dogTeam       Team?    @relation("DogMembers", fields: [dogTeamId], references: [id])
+  dogMembers    Team[]   @relation("DogMembers")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }

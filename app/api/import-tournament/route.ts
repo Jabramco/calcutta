@@ -175,16 +175,14 @@ export async function POST(request: Request) {
       console.warn(`WARNING: Found ${championCount} champions, expected exactly 1`)
     }
 
-    // Now update our database teams
+    // Now update our database teams (including member teams 14/15/16 used for bracket match)
     let updatedTeams = 0
     const updates: string[] = []
 
     for (const [apiTeamName, wonRounds] of teamWins.entries()) {
-      // Try to match with our teams
       const matchedTeam = teams.find((team) => {
         const teamNameLower = team.name.toLowerCase()
         const apiNameLower = apiTeamName.toLowerCase()
-        
         return (
           teamNameLower === apiNameLower ||
           teamNameLower.includes(apiNameLower) ||
@@ -201,13 +199,10 @@ export async function POST(request: Request) {
           final4: wonRounds.has('final4'),
           championship: wonRounds.has('championship')
         }
-
-        // Update the team
         await prisma.team.update({
           where: { id: matchedTeam.id },
           data: updateData
         })
-
         updatedTeams++
         const winCount = wonRounds.size
         updates.push(`${matchedTeam.name}: ${winCount} win${winCount !== 1 ? 's' : ''}`)
@@ -215,6 +210,26 @@ export async function POST(request: Request) {
       } else {
         console.log(`No match found for: ${apiTeamName}`)
       }
+    }
+
+    // Aggregate round wins from member teams (14, 15, 16) to their Dogs team
+    const dogsTeams = await prisma.team.findMany({ where: { isDogs: true }, include: { dogMembers: true } })
+    for (const dogsTeam of dogsTeams) {
+      const members = dogsTeam.dogMembers
+      if (members.length === 0) continue
+      const aggregated = {
+        round64: members.some((m) => m.round64),
+        round32: members.some((m) => m.round32),
+        sweet16: members.some((m) => m.sweet16),
+        elite8: members.some((m) => m.elite8),
+        final4: members.some((m) => m.final4),
+        championship: members.some((m) => m.championship)
+      }
+      await prisma.team.update({
+        where: { id: dogsTeam.id },
+        data: aggregated
+      })
+      console.log(`Aggregated Dogs ${dogsTeam.region}: rounds from ${members.length} members`)
     }
 
     return NextResponse.json({

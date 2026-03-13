@@ -3,7 +3,9 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
+    // Only show seeds 1–13 and Dogs (exclude member teams 14/15/16)
     const teams = await prisma.team.findMany({
+      where: { dogTeamId: null },
       include: {
         owner: true
       },

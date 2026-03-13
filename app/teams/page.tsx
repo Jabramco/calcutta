@@ -286,7 +286,7 @@ export default function TeamsPage() {
                         {regionTeams.map(team => (
                           <tr key={team.id} className="hover:bg-[#1c1c28] transition-colors">
                             <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-white">
-                              {team.seed}
+                              {'isDogs' in team && team.isDogs ? '14–16' : team.seed}
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap text-sm text-white font-medium">
                               {team.name}

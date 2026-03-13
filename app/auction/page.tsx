@@ -730,7 +730,7 @@ export default function AuctionPage() {
               <div className="mb-6 p-6 glass-card rounded-2xl border-2 border-[#00ceb8] shadow-lg shadow-[#00ceb8]/40 bg-gradient-to-br from-[#00ceb8]/10 to-transparent">
                 <div className="text-3xl font-bold text-white mb-2">{auctionState.currentTeam.name}</div>
                 <div className="text-sm text-[#00ceb8] font-medium">
-                  {auctionState.currentTeam.region} Region • Seed #{auctionState.currentTeam.seed}
+                  {auctionState.currentTeam.region} Region • Seed #{(auctionState.currentTeam as { seed: number; isDogs?: boolean }).isDogs ? '14–16' : auctionState.currentTeam.seed}
                 </div>
               </div>
 

@@ -28,7 +28,8 @@ export default function LoginPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        setError(data.error || 'Login failed')
+        const msg = data.error || 'Login failed'
+        setError(data.details ? `${msg}: ${data.details}` : msg)
         return
       }
 

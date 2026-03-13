@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { generateToken } from '@/lib/auth'
 import { serialize } from 'cookie'
@@ -18,9 +18,9 @@ export async function POST(request: Request) {
       )
     }
 
-    // Find user (case-insensitive username so "Admin" and "admin" both work)
-    const user = await prisma.user.findFirst({
-      where: { username: { equals: username, mode: 'insensitive' } }
+    // Find user (exact match; username is trimmed above)
+    const user = await prisma.user.findUnique({
+      where: { username }
     })
 
     if (!user) {
@@ -30,9 +30,17 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verify password
-    const validPassword = await bcrypt.compare(password, user.password)
-
+    // Verify password (guard against invalid hash in DB)
+    let validPassword = false
+    try {
+      validPassword = await bcrypt.compare(password, user.password)
+    } catch (e) {
+      console.error('Login bcrypt.compare error:', e)
+      return NextResponse.json(
+        { error: 'Invalid username or password' },
+        { status: 401 }
+      )
+    }
     if (!validPassword) {
       return NextResponse.json(
         { error: 'Invalid username or password' },
@@ -70,10 +78,14 @@ export async function POST(request: Request) {
     })
 
     return response
-  } catch (error) {
-    console.error('Login error:', error)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+    const stack = error instanceof Error ? error.stack : undefined
+    console.error('Login error:', message, stack)
+    // In development, surface the error so we can fix it; in production keep it generic
+    const isDev = process.env.NODE_ENV !== 'production'
     return NextResponse.json(
-      { error: 'Failed to login' },
+      { error: 'Failed to login', ...(isDev && { details: message }) },
       { status: 500 }
     )
   }

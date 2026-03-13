@@ -3,11 +3,12 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    // Only show seeds 1–13 and Dogs (exclude member teams 14/15/16)
+    // Only show seeds 1–13 and Dogs (exclude member teams 14/15/16); include member names for Dogs
     const teams = await prisma.team.findMany({
       where: { dogTeamId: null },
       include: {
-        owner: true
+        owner: true,
+        dogMembers: { select: { name: true }, orderBy: { seed: 'asc' } }
       },
       orderBy: [
         { region: 'asc' },

@@ -728,7 +728,13 @@ export default function AuctionPage() {
           {auctionState?.isActive && auctionState.currentTeam ? (
             <div>
               <div className="mb-6 p-6 glass-card rounded-2xl border-2 border-[#00ceb8] shadow-lg shadow-[#00ceb8]/40 bg-gradient-to-br from-[#00ceb8]/10 to-transparent">
-                <div className="text-3xl font-bold text-white mb-2">{auctionState.currentTeam.name}</div>
+                <div className="text-3xl font-bold text-white mb-2">
+                  {(() => {
+                    const t = auctionState.currentTeam as { name: string; dogMembers?: { name: string }[] }
+                    if (t.dogMembers?.length) return `${t.name}: ${t.dogMembers.map(m => m.name).join(', ')}`
+                    return t.name
+                  })()}
+                </div>
                 <div className="text-sm text-[#00ceb8] font-medium">
                   {auctionState.currentTeam.region} Region • Seed #{(auctionState.currentTeam as { seed: number; isDogs?: boolean }).isDogs ? '14–16' : auctionState.currentTeam.seed}
                 </div>

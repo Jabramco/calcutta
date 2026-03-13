@@ -288,8 +288,10 @@ export default function TeamsPage() {
                             <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-white">
                               {'isDogs' in team && team.isDogs ? '14–16' : team.seed}
                             </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-white font-medium">
-                              {team.name}
+                            <td className="px-4 py-3 text-sm text-white font-medium">
+                              {'dogMembers' in team && Array.isArray(team.dogMembers) && team.dogMembers.length > 0
+                                ? `${team.name}: ${(team.dogMembers as { name: string }[]).map(m => m.name).join(', ')}`
+                                : team.name}
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
                               <div className="text-sm text-[#a0a0b8]">

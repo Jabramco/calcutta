@@ -56,7 +56,8 @@ export async function GET() {
     let currentTeam = null
     if (state.currentTeamId) {
       currentTeam = await prisma.team.findUnique({
-        where: { id: state.currentTeamId }
+        where: { id: state.currentTeamId },
+        include: { dogMembers: { select: { name: true }, orderBy: { seed: 'asc' } } }
       })
     }
 

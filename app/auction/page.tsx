@@ -323,9 +323,12 @@ export default function AuctionPage() {
         const lastSale = data.lastSale
         if (lastSale && lastSale.teamName && lastSale.winner != null && lastSale.teamName !== lastShownSaleTeamRef.current) {
           lastShownSaleTeamRef.current = lastSale.teamName
+          const msg = lastSale.remainingSpend != null
+            ? `SOLD to ${lastSale.winner} for ${formatCurrency(lastSale.amount)}! (${formatCurrency(lastSale.remainingSpend)} remaining to spend)`
+            : `SOLD to ${lastSale.winner} for ${formatCurrency(lastSale.amount)}!`
           addChatMessage({
             type: 'sold',
-            message: `SOLD to ${lastSale.winner} for ${formatCurrency(lastSale.amount)}!`,
+            message: msg,
             timestamp: Date.now()
           })
         }
@@ -545,9 +548,12 @@ export default function AuctionPage() {
           setLoading(false)
           return
         }
+        const soldMsg = data.remainingSpend != null
+          ? `SOLD to ${state.currentBidder} for ${formatCurrency(state.currentBid || 0)}! (${formatCurrency(data.remainingSpend)} remaining to spend)`
+          : `SOLD to ${state.currentBidder} for ${formatCurrency(state.currentBid || 0)}!`
         addChatMessage({
           type: 'sold',
-          message: `SOLD to ${state.currentBidder} for ${formatCurrency(state.currentBid || 0)}!`,
+          message: soldMsg,
           timestamp: Date.now()
         })
         lastShownSaleTeamRef.current = state.currentTeam?.name ?? null

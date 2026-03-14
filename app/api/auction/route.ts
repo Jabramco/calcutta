@@ -1,6 +1,19 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+const SPEND_CAP = 250
+
+/** Total $ spent by owner (by name). Only displayable teams (dogTeamId null). */
+async function getOwnerTotalSpend(prismaOrTx: any, ownerName: string): Promise<number> {
+  const owner = await prismaOrTx.owner.findFirst({ where: { name: ownerName } })
+  if (!owner) return 0
+  const teams = await prismaOrTx.team.findMany({
+    where: { ownerId: owner.id, dogTeamId: null },
+    select: { cost: true }
+  })
+  return teams.reduce((sum: number, t: { cost: number }) => sum + Number(t.cost), 0)
+}
+
 // Helper function to get or create auction state
 async function getAuctionState() {
   let state = await prisma.auctionState.findFirst()
@@ -62,11 +75,11 @@ export async function GET() {
     }
 
     // So clients that rejoin see "SOLD to X for $Y!" — stored in Settings to avoid schema change
-    let lastSale: { teamName: string; winner: string; amount: number } | null = null
+    let lastSale: { teamName: string; winner: string; amount: number; remainingSpend?: number } | null = null
     const lastSaleRow = await prisma.settings.findUnique({ where: { key: 'lastAuctionSale' } })
     if (lastSaleRow?.value) {
       try {
-        lastSale = JSON.parse(lastSaleRow.value) as { teamName: string; winner: string; amount: number }
+        lastSale = JSON.parse(lastSaleRow.value) as { teamName: string; winner: string; amount: number; remainingSpend?: number }
       } catch {
         lastSale = null
       }
@@ -190,6 +203,9 @@ export async function POST(request: Request) {
           if (!lockedState.isActive || !lockedState.currentTeamId) throw new Error('NO_ACTIVE_AUCTION')
           if (bidAmount <= lockedState.currentBid) throw new Error('BID_TOO_LOW')
 
+          const currentTotal = await getOwnerTotalSpend(tx, bidder.trim())
+          if (currentTotal + bidAmount > SPEND_CAP) throw new Error('SPEND_CAP_EXCEEDED')
+
           const newBid = { bidder: bidder.trim(), amount: bidAmount, timestamp: now }
           const bids = [...lockedState.bids, newBid]
           const updated = await tx.auctionState.update({
@@ -207,6 +223,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: true, state: parseState(updatedDbState) })
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e)
+        if (msg === 'SPEND_CAP_EXCEEDED') return NextResponse.json({ error: "You can't spend over $250" }, { status: 400 })
         if (msg === 'BID_TOO_LOW') return NextResponse.json({ error: 'Bid must be higher than current bid' }, { status: 400 })
         if (msg === 'NO_ACTIVE_AUCTION') return NextResponse.json({ error: 'No active auction' }, { status: 400 })
         if (msg === 'NO_STATE') return NextResponse.json({ error: 'No active auction' }, { status: 400 })
@@ -249,10 +266,16 @@ export async function POST(request: Request) {
           data: { ownerId: owner.id, cost: state.currentBid }
         })
 
+        const totalSpend = await getOwnerTotalSpend(tx, state.currentBidder!)
+        const remainingSpend = SPEND_CAP - totalSpend
+        const formatCurrency = (n: number) => `$${Number(n).toFixed(2)}`
+        const soldMessage = `SOLD to ${state.currentBidder} for ${formatCurrency(state.currentBid)}! (${formatCurrency(remainingSpend)} remaining to spend)`
+
         const lastSaleJson = JSON.stringify({
           teamName: soldTeam?.name ?? 'Team',
           winner: state.currentBidder,
-          amount: state.currentBid
+          amount: state.currentBid,
+          remainingSpend
         })
         await tx.settings.upsert({
           where: { key: 'lastAuctionSale' },
@@ -269,9 +292,8 @@ export async function POST(request: Request) {
             ]
           }
         })
-        const formatCurrency = (n: number) => `$${Number(n).toFixed(2)}`
         const now = Date.now()
-        await appendAuctionEvent(tx, { type: 'sold', message: `SOLD to ${state.currentBidder} for ${formatCurrency(state.currentBid)}!`, timestamp: now })
+        await appendAuctionEvent(tx, { type: 'sold', message: soldMessage, timestamp: now })
 
         let updatedDbState
         if (unassignedTeams.length > 0) {
@@ -301,7 +323,7 @@ export async function POST(request: Request) {
             }
           })
         }
-        return { noOp: false, state: parseState(updatedDbState), remainingTeams: unassignedTeams.length, error: null, status: 200 }
+        return { noOp: false, state: parseState(updatedDbState), remainingTeams: unassignedTeams.length, remainingSpend, error: null, status: 200 }
       })
 
       if (result.error && result.status === 400) {
@@ -313,7 +335,7 @@ export async function POST(request: Request) {
       if (result.noOp) {
         return NextResponse.json({ error: result.error || 'No active auction' }, { status: result.status || 400 })
       }
-      return NextResponse.json({ success: true, state: result.state, remainingTeams: result.remainingTeams })
+      return NextResponse.json({ success: true, state: result.state, remainingTeams: result.remainingTeams, remainingSpend: result.remainingSpend })
     }
 
     if (action === 'stop') {

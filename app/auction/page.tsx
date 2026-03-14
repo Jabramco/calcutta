@@ -759,6 +759,9 @@ export default function AuctionPage() {
                 <div className="text-xl font-bold text-white">
                   {formatCurrency(bidderSpend ?? 0)} <span className="text-[#a0a0b8] font-normal text-base">/ $250 cap</span>
                 </div>
+                <div className="text-sm text-[#00ceb8] mt-1">
+                  {formatCurrency(250 - (bidderSpend ?? 0))} remaining to spend
+                </div>
               </div>
             )}
           </div>

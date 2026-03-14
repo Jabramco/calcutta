@@ -26,7 +26,7 @@ interface ChatMessage {
   amount?: number
 }
 
-const COUNTDOWN_INTERVAL = 3000 // 3 seconds between warnings
+const COUNTDOWN_INTERVAL = 5000 // 5 seconds between warnings
 
 export default function AuctionPage() {
   const [auctionState, setAuctionState] = useState<AuctionState | null>(null)
@@ -61,10 +61,20 @@ export default function AuctionPage() {
   const [isInitialized, setIsInitialized] = useState(false)
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false })
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [nextTeamRevealInSeconds, setNextTeamRevealInSeconds] = useState<number | null>(null)
 
   useEffect(() => {
     auctionStateRef.current = auctionState
   }, [auctionState])
+
+  // Count down "Introducing next team in Xs" (3s delay after sold)
+  useEffect(() => {
+    if (nextTeamRevealInSeconds == null || nextTeamRevealInSeconds <= 0) return
+    const interval = setInterval(() => {
+      setNextTeamRevealInSeconds((prev) => (prev == null || prev <= 1 ? null : prev - 1))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [nextTeamRevealInSeconds])
 
   // Fetch current user
   useEffect(() => {
@@ -481,6 +491,7 @@ export default function AuctionPage() {
 
   const placeBid = async () => {
     if (!currentUser || !bidAmount) return
+    if (nextTeamRevealInSeconds != null && nextTeamRevealInSeconds > 0) return // No bids during "Introducing next team" countdown
 
     const amount = parseFloat(bidAmount)
     if (isNaN(amount) || amount <= (auctionState?.currentBid || 0)) {
@@ -571,6 +582,7 @@ export default function AuctionPage() {
         lastBidCount.current = 0
         
         if (data.remainingTeams > 0) {
+          setNextTeamRevealInSeconds(3)
           addChatMessage({
             type: 'system',
             message: `${data.remainingTeams} teams remaining. Next team coming up...`,
@@ -768,7 +780,14 @@ export default function AuctionPage() {
 
           <h2 className="text-xl font-semibold mb-4 text-white">Current Team</h2>
           
-          {auctionState?.isActive && auctionState.currentTeam ? (
+          {auctionState?.isActive && auctionState.currentTeam && nextTeamRevealInSeconds !== null && nextTeamRevealInSeconds > 0 ? (
+            <div className="mb-6 p-6 glass-card rounded-2xl border border-[#2a2a38] flex items-center justify-center min-h-[120px]">
+              <div className="text-center text-[#a0a0b8]">
+                <div className="text-lg font-medium text-white mb-1">Introducing next team in</div>
+                <div className="text-3xl font-bold text-[#00ceb8]">{nextTeamRevealInSeconds}s</div>
+              </div>
+            </div>
+          ) : auctionState?.isActive && auctionState.currentTeam ? (
             <div>
               <div className="mb-6 p-6 glass-card rounded-2xl border-2 border-[#00ceb8] shadow-lg shadow-[#00ceb8]/40 bg-gradient-to-br from-[#00ceb8]/10 to-transparent">
                 <div className="text-3xl font-bold text-white mb-2">
@@ -939,14 +958,14 @@ export default function AuctionPage() {
                     onChange={(e) => setBidAmount(e.target.value)}
                     placeholder="Bid amount"
                     className="flex-1 px-4 py-2 rounded-xl text-white placeholder-[#a0a0b8] focus:outline-none focus:ring-2 focus:ring-[#00ceb8] focus:border-transparent transition-all bg-[#0d0d14] border border-[#2a2a38]"
-                    disabled={!auctionState?.currentTeam}
+                    disabled={!auctionState?.currentTeam || (nextTeamRevealInSeconds != null && nextTeamRevealInSeconds > 0)}
                     step="5"
                     min="5"
-                    onKeyPress={(e) => e.key === 'Enter' && placeBid()}
+                    onKeyPress={(e) => e.key === 'Enter' && !(nextTeamRevealInSeconds != null && nextTeamRevealInSeconds > 0) && placeBid()}
                   />
                   <button
                     onClick={placeBid}
-                    disabled={loading || !auctionState?.currentTeam || !bidAmount}
+                    disabled={loading || !auctionState?.currentTeam || !bidAmount || (nextTeamRevealInSeconds != null && nextTeamRevealInSeconds > 0)}
                     className="btn-gradient-primary px-6 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold whitespace-nowrap w-full sm:w-auto"
                   >
                     Place Bid

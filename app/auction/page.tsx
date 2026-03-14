@@ -37,6 +37,8 @@ export default function AuctionPage() {
   const [countdown, setCountdown] = useState<number | null>(null)
   const [warningState, setWarningState] = useState<'none' | 'once' | 'twice'>('none')
   const [totalPot, setTotalPot] = useState(0)
+  const [payoutPerWin, setPayoutPerWin] = useState<{ round64: number; round32: number; sweet16: number; elite8: number; final4: number; championship: number } | null>(null)
+  const [bidderSpend, setBidderSpend] = useState<number | null>(null)
   const [teamsRemaining, setTeamsRemaining] = useState(64)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -254,6 +256,7 @@ export default function AuctionPage() {
       const response = await fetch('/api/stats')
       const data = await response.json()
       setTotalPot(data.totalPot)
+      setPayoutPerWin(data.payoutPerWin ?? null)
     } catch (error) {
       console.error('Error fetching stats:', error)
     }
@@ -261,8 +264,10 @@ export default function AuctionPage() {
 
   const fetchAuctionState = async () => {
     try {
-      const response = await fetch('/api/auction')
+      const url = currentUser ? `/api/auction?forUser=${encodeURIComponent(currentUser.username)}` : '/api/auction'
+      const response = await fetch(url)
       const data = await response.json()
+      if (typeof data.bidderSpend === 'number') setBidderSpend(data.bidderSpend)
 
       const usedServerEvents = data.events && Array.isArray(data.events)
       if (usedServerEvents) {
@@ -507,7 +512,7 @@ export default function AuctionPage() {
         await fetchStats()
       } else {
         const data = await response.json()
-        alert(data.error || 'Failed to place bid')
+        showToast(data.error || 'Failed to place bid')
       }
     } catch (error) {
       console.error('Error placing bid:', error)
@@ -727,8 +732,37 @@ export default function AuctionPage() {
         </div>
 
         <div className="container mx-auto px-4 flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6 pb-6">
-        {/* Current Team Card */}
-        <div className="lg:col-span-1">
+        {/* Left column: info cards (desktop only) + current team + controls */}
+        <div className="lg:col-span-1 space-y-4">
+          {/* Info cards — hidden on mobile */}
+          <div className="hidden lg:flex flex-col gap-3">
+            <div className="glass-card rounded-xl p-4">
+              <div className="text-xs text-[#a0a0b8] uppercase tracking-wide mb-1">Total prize pool</div>
+              <div className="text-xl font-bold text-[#00ceb8]">{formatCurrency(totalPot ?? 0)}</div>
+            </div>
+            {payoutPerWin && (
+              <div className="glass-card rounded-xl p-4">
+                <div className="text-xs text-[#a0a0b8] uppercase tracking-wide mb-2">Payout per round</div>
+                <div className="text-sm space-y-1 text-white">
+                  <div className="flex justify-between"><span>64</span><span>{formatCurrency(payoutPerWin.round64)}</span></div>
+                  <div className="flex justify-between"><span>32</span><span>{formatCurrency(payoutPerWin.round32)}</span></div>
+                  <div className="flex justify-between"><span>S16</span><span>{formatCurrency(payoutPerWin.sweet16)}</span></div>
+                  <div className="flex justify-between"><span>E8</span><span>{formatCurrency(payoutPerWin.elite8)}</span></div>
+                  <div className="flex justify-between"><span>F4</span><span>{formatCurrency(payoutPerWin.final4)}</span></div>
+                  <div className="flex justify-between"><span>Champ</span><span>{formatCurrency(payoutPerWin.championship)}</span></div>
+                </div>
+              </div>
+            )}
+            {currentUser && (
+              <div className="glass-card rounded-xl p-4">
+                <div className="text-xs text-[#a0a0b8] uppercase tracking-wide mb-1">Your spending</div>
+                <div className="text-xl font-bold text-white">
+                  {formatCurrency(bidderSpend ?? 0)} <span className="text-[#a0a0b8] font-normal text-base">/ $250 cap</span>
+                </div>
+              </div>
+            )}
+          </div>
+
           <h2 className="text-xl font-semibold mb-4 text-white">Current Team</h2>
           
           {auctionState?.isActive && auctionState.currentTeam ? (

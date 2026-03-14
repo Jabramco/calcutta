@@ -61,8 +61,11 @@ async function appendAuctionEvent(prismaOrTx: any, event: AuctionEvent) {
   })
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const forUser = searchParams.get('forUser')?.trim() || null
+
     const dbState = await getAuctionState()
     const state = parseState(dbState)
     
@@ -96,11 +99,17 @@ export async function GET() {
       }
     }
 
+    let bidderSpend: number | null = null
+    if (forUser) {
+      bidderSpend = await getOwnerTotalSpend(prisma, forUser)
+    }
+
     return NextResponse.json({
       ...state,
       currentTeam,
       lastSale,
-      events
+      events,
+      ...(bidderSpend !== null && { bidderSpend })
     })
   } catch (error: any) {
     console.error('Error fetching auction state:', error)

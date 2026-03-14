@@ -62,6 +62,12 @@ export default function AuctionPage() {
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false })
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [nextTeamRevealInSeconds, setNextTeamRevealInSeconds] = useState<number | null>(null)
+  const nextTeamRevealInSecondsRef = useRef<number | null>(null)
+  const pendingNextTeamChatEventRef = useRef<ChatMessage | null>(null)
+
+  useEffect(() => {
+    nextTeamRevealInSecondsRef.current = nextTeamRevealInSeconds
+  }, [nextTeamRevealInSeconds])
 
   useEffect(() => {
     auctionStateRef.current = auctionState
@@ -88,6 +94,28 @@ export default function AuctionPage() {
       setNextTeamRevealInSeconds(null)
     }, 4000)
     return () => clearTimeout(t)
+  }, [nextTeamRevealInSeconds])
+
+  // When 3s delay ends, show the held-back "Now auctioning" message in chat
+  useEffect(() => {
+    if (nextTeamRevealInSeconds !== null) return
+    const pending = pendingNextTeamChatEventRef.current
+    if (!pending) return
+    pendingNextTeamChatEventRef.current = null
+    setChatMessages((prev) => [...prev, pending])
+  }, [nextTeamRevealInSeconds])
+
+  // Update chat countdown message every second ("Introducing next team in 3s" -> "2s" -> "1s")
+  useEffect(() => {
+    if (nextTeamRevealInSeconds == null || nextTeamRevealInSeconds <= 0) return
+    setChatMessages((prev) => {
+      const last = prev[prev.length - 1]
+      if (!last || last.type !== 'system' || !last.message?.startsWith('Introducing next team in')) return prev
+      return [
+        ...prev.slice(0, -1),
+        { ...last, message: `Introducing next team in ${nextTeamRevealInSeconds} second${nextTeamRevealInSeconds !== 1 ? 's' : ''}...`, timestamp: Date.now() }
+      ]
+    })
   }, [nextTeamRevealInSeconds])
 
   // Fetch current user
@@ -336,6 +364,18 @@ export default function AuctionPage() {
             : warning === 'twice'
               ? [...messages, { type: 'warning' as const, message: 'Going once!', timestamp: now - COUNTDOWN_INTERVAL }, { type: 'warning' as const, message: 'Going TWICE!', timestamp: now }]
               : messages
+
+        // Hold back "Now auctioning" in chat for 3s when in delay so SOLD and next team aren't same timestamp
+        const delaySec = nextTeamRevealInSecondsRef.current
+        const lastMsg = messages[messages.length - 1]
+        const secondLastMsg = messages[messages.length - 2] as ChatMessage | undefined
+        if (delaySec != null && delaySec > 0 && lastMsg?.type === 'bot' && lastMsg?.message?.startsWith('Now auctioning') && secondLastMsg?.type === 'sold') {
+          pendingNextTeamChatEventRef.current = lastMsg
+          messages = [
+            ...messages.slice(0, -1),
+            { type: 'system' as const, message: `Introducing next team in ${delaySec} second${delaySec !== 1 ? 's' : ''}...`, timestamp: now }
+          ]
+        }
         setChatMessages(messages)
         if (data.currentTeam) {
           lastAnnouncedTeamId.current = data.currentTeam.id

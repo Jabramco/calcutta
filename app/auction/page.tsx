@@ -68,12 +68,26 @@ export default function AuctionPage() {
   }, [auctionState])
 
   // Count down "Introducing next team in Xs" (3s delay after sold)
+  const nextTeamRevealStartedAt = useRef<number | null>(null)
   useEffect(() => {
-    if (nextTeamRevealInSeconds == null || nextTeamRevealInSeconds <= 0) return
+    if (nextTeamRevealInSeconds == null || nextTeamRevealInSeconds <= 0) {
+      nextTeamRevealStartedAt.current = null
+      return
+    }
+    if (nextTeamRevealStartedAt.current === null) nextTeamRevealStartedAt.current = Date.now()
     const interval = setInterval(() => {
       setNextTeamRevealInSeconds((prev) => (prev == null || prev <= 1 ? null : prev - 1))
     }, 1000)
     return () => clearInterval(interval)
+  }, [nextTeamRevealInSeconds])
+
+  // Safety: clear stuck "Introducing next team" after 4s so bidding is never permanently disabled
+  useEffect(() => {
+    if (nextTeamRevealInSeconds == null) return
+    const t = setTimeout(() => {
+      setNextTeamRevealInSeconds(null)
+    }, 4000)
+    return () => clearTimeout(t)
   }, [nextTeamRevealInSeconds])
 
   // Fetch current user
@@ -743,9 +757,9 @@ export default function AuctionPage() {
           </div>
         </div>
 
-        <div className="container mx-auto px-4 flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6 pb-6">
-        {/* Left column: info cards (desktop only) + current team + controls */}
-        <div className="lg:col-span-1 space-y-4">
+        <div className="container mx-auto px-4 flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6 pb-6 overflow-hidden">
+        {/* Left column: scrollable so countdown + controls stay visible */}
+        <div className="lg:col-span-1 flex flex-col min-h-0 overflow-y-auto space-y-4 pr-2">
           {/* Info cards — hidden on mobile */}
           <div className="hidden lg:flex flex-col gap-3">
             <div className="glass-card rounded-xl p-4">
@@ -948,8 +962,8 @@ export default function AuctionPage() {
               <div ref={chatEndRef} />
             </div>
 
-            {/* Bid Input */}
-            <div className="p-4 border-t border-[#2a2a38] glass-input">
+            {/* Bid Input — flex-shrink-0 so it stays visible at bottom */}
+            <div className="flex-shrink-0 p-4 border-t border-[#2a2a38] glass-input">
               {currentUser ? (
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input

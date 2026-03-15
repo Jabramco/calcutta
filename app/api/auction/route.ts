@@ -206,12 +206,19 @@ export async function POST(request: Request) {
     }
 
     if (action === 'bid') {
-      const bidAmount = typeof amount === 'number' ? amount : parseFloat(amount)
+      const parsed = typeof amount === 'number' ? amount : parseFloat(amount)
+      const bidAmount = Number.isNaN(parsed) ? 0 : parsed
       if (typeof bidder !== 'string' || !bidder.trim()) {
         return NextResponse.json({ error: 'Bidder is required' }, { status: 400 })
       }
       if (Number.isNaN(bidAmount) || bidAmount <= 0) {
         return NextResponse.json({ error: 'Valid bid amount is required' }, { status: 400 })
+      }
+      if (bidAmount < 5) {
+        return NextResponse.json({ error: 'Minimum bid is $5' }, { status: 400 })
+      }
+      if (!Number.isInteger(bidAmount)) {
+        return NextResponse.json({ error: 'Bid must be in whole dollars (no cents)' }, { status: 400 })
       }
       // Serialize bids with a transaction + row lock so 20 concurrent bidders can't overwrite each other
       const formatCurrency = (n: number) => `$${Number(n).toFixed(2)}`

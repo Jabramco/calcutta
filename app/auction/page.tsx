@@ -536,13 +536,22 @@ export default function AuctionPage() {
     }
   }
 
-  const placeBid = async () => {
-    if (!currentUser || !bidAmount) return
+  const placeBid = async (overrideAmount?: number) => {
+    if (!currentUser) return
+    const amount = overrideAmount ?? parseFloat(bidAmount)
+    if (overrideAmount == null && !bidAmount) return
     if (nextTeamRevealInSeconds != null && nextTeamRevealInSeconds > 0) return // No bids during "Introducing next team" countdown
 
-    const amount = parseFloat(bidAmount)
     if (isNaN(amount) || amount <= (auctionState?.currentBid || 0)) {
       showToast('Must be higher than current highest bid')
+      return
+    }
+    if (amount < 5) {
+      showToast('Minimum bid is $5')
+      return
+    }
+    if (!Number.isInteger(amount)) {
+      showToast('Bid must be in whole dollars (no cents)')
       return
     }
 
@@ -565,7 +574,7 @@ export default function AuctionPage() {
       })
 
       if (response.ok) {
-        setBidAmount('')
+        if (overrideAmount == null) setBidAmount('')
         await fetchAuctionState()
         await fetchStats()
       } else {
@@ -664,7 +673,7 @@ export default function AuctionPage() {
 
   const soldTeam = async () => {
     if (!auctionState?.currentBidder) {
-      alert('No bids placed yet!')
+      showToast('No bids placed yet!')
       return
     }
 
@@ -1013,15 +1022,23 @@ export default function AuctionPage() {
                     type="number"
                     value={bidAmount}
                     onChange={(e) => setBidAmount(e.target.value)}
-                    placeholder="Bid amount"
+                    placeholder="Whole dollars only, min $5"
                     className="flex-1 px-4 py-2 rounded-xl text-white placeholder-[#a0a0b8] focus:outline-none focus:ring-2 focus:ring-[#00ceb8] focus:border-transparent transition-all bg-[#0d0d14] border border-[#2a2a38]"
                     disabled={!auctionState?.currentTeam || (nextTeamRevealInSeconds != null && nextTeamRevealInSeconds > 0)}
-                    step="5"
+                    step="1"
                     min="5"
                     onKeyPress={(e) => e.key === 'Enter' && !(nextTeamRevealInSeconds != null && nextTeamRevealInSeconds > 0) && placeBid()}
                   />
                   <button
-                    onClick={placeBid}
+                    onClick={() => placeBid((auctionState?.currentBid ?? 0) + 5)}
+                    disabled={loading || !auctionState?.currentTeam || auctionState?.currentBidder === currentUser?.username || (nextTeamRevealInSeconds != null && nextTeamRevealInSeconds > 0)}
+                    title={`Bid $${((auctionState?.currentBid ?? 0) + 5).toLocaleString()}`}
+                    className="btn-gradient-primary px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold whitespace-nowrap"
+                  >
+                    +$5
+                  </button>
+                  <button
+                    onClick={() => placeBid()}
                     disabled={loading || !auctionState?.currentTeam || !bidAmount || (nextTeamRevealInSeconds != null && nextTeamRevealInSeconds > 0)}
                     className="btn-gradient-primary px-6 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold whitespace-nowrap w-full sm:w-auto"
                   >

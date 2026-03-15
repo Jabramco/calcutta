@@ -86,23 +86,61 @@ export async function POST(request: Request) {
       )
     }
 
-    // Filter and sort tournament games by date
-    const tournamentGames = data.events
+    // All tournament events (scheduled + completed) for bracket team list
+    const allTournamentEvents = (data.events as any[]).filter(
+      (e: any) => e.season?.type === 3
+    )
+    // Completed games only for round wins
+    const tournamentGames = (data.events as any[])
       .filter((event: any) => event.season?.type === 3 && event.status?.type?.completed)
       .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
-    console.log(`Found ${tournamentGames.length} completed tournament games`)
+    console.log(`Found ${allTournamentEvents.length} tournament events, ${tournamentGames.length} completed`)
 
-    // Track winners at each stage to build the bracket
-    const teamWins: Map<string, Set<string>> = new Map() // team name -> set of rounds won
-    
-    // Round order for progression
-    const roundOrder = ['round64', 'round32', 'sweet16', 'elite8', 'final4', 'championship']
+    // Build bracket team list by region + seed from all events (so 2026 bracket works before any games complete)
+    const REGIONS = ['East', 'West', 'South', 'Midwest'] as const
+    const bracketByRegionSeed: Record<string, Map<number, string>> = {}
+    REGIONS.forEach((r) => { bracketByRegionSeed[r] = new Map() })
+    for (const event of allTournamentEvents) {
+      const note = event.competitions?.[0]?.notes?.[0]?.headline as string | undefined
+      const regionMatch = note?.match(/(East|West|South|Midwest) Region/)
+      const region = regionMatch ? regionMatch[1] : null
+      if (!region || !REGIONS.includes(region as any)) continue
+      const competitors = event.competitions?.[0]?.competitors ?? []
+      for (const c of competitors) {
+        const displayName = c.team?.displayName || c.team?.shortDisplayName
+        if (!displayName || displayName === 'TBD') continue
+        const seed = c.curatedRank?.current
+        if (typeof seed !== 'number' || seed < 1 || seed > 16) continue
+        const map = bracketByRegionSeed[region]
+        if (!map.has(seed)) map.set(seed, displayName)
+      }
+    }
 
-    // Get all teams from our database
+    // Get all teams from our database (display teams + dog members)
     const teams = await prisma.team.findMany()
+    let updatedNames = 0
+    for (const team of teams) {
+      if (team.isDogs) continue
+      const map = bracketByRegionSeed[team.region]
+      if (!map) continue
+      const apiName = map.get(team.seed)
+      if (!apiName) continue
+      if (team.name !== apiName) {
+        await prisma.team.update({ where: { id: team.id }, data: { name: apiName } })
+        updatedNames++
+      }
+    }
+    console.log(`Updated ${updatedNames} team names from ${year} bracket`)
 
-    // Process games and count wins per team
+    // Re-fetch teams so matching uses updated names
+    const teamsAfterBracket = await prisma.team.findMany()
+
+    // --- ROUND WINS (Teams page checkmarks): unchanged. Only completed games update round64, round32, etc. ---
+    // When games finish, ESPN sets event.status.type.completed = true. We count wins per team, map to rounds, match API name → DB team, then update round flags + aggregate to Dogs.
+    // Track winners at each stage (completed games only)
+    const teamWins: Map<string, Set<string>> = new Map()
+    const roundOrder = ['round64', 'round32', 'sweet16', 'elite8', 'final4', 'championship']
     const teamGameCount: Map<string, number> = new Map()
 
     for (const event of tournamentGames) {
@@ -180,7 +218,7 @@ export async function POST(request: Request) {
     const updates: string[] = []
 
     for (const [apiTeamName, wonRounds] of teamWins.entries()) {
-      const matchedTeam = teams.find((team) => {
+      const matchedTeam = teamsAfterBracket.find((team) => {
         const teamNameLower = team.name.toLowerCase()
         const apiNameLower = apiTeamName.toLowerCase()
         return (
@@ -234,10 +272,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Successfully imported ${year} tournament results`,
+      message: tournamentGames.length > 0
+        ? `Successfully imported ${year} tournament results`
+        : `Updated ${year} bracket (${updatedNames} team names). No games completed yet.`,
       champion: championName,
       tournamentGames: tournamentGames.length,
       updatedTeams,
+      updatedNames,
       updates: updates.slice(0, 20)
     })
   } catch (error: any) {

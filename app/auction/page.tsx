@@ -320,6 +320,7 @@ export default function AuctionPage() {
       const response = await fetch(url)
       const data = await response.json()
       if (typeof data.bidderSpend === 'number') setBidderSpend(data.bidderSpend)
+      if (typeof data.teamsRemaining === 'number') setTeamsRemaining(data.teamsRemaining)
 
       const usedServerEvents = data.events && Array.isArray(data.events)
       if (usedServerEvents) {
@@ -460,14 +461,6 @@ export default function AuctionPage() {
           reconnectGraceUntilRef.current = Date.now() + 5000
           reconnectGraceSetForTeamRef.current = data.currentTeam.id
         }
-      }
-
-      // Count remaining teams
-      if (data.isActive && !data.currentTeam) {
-        const teamsResponse = await fetch('/api/teams')
-        const teams = await teamsResponse.json()
-        const remaining = teams.filter((t: any) => !t.ownerId).length
-        setTeamsRemaining(remaining)
       }
 
       setAuctionState(data)
@@ -980,7 +973,17 @@ export default function AuctionPage() {
         <div className="lg:col-span-2 flex flex-col min-h-[400px] lg:min-h-0">
           <div className="glass-card rounded-2xl flex flex-col min-h-[400px] lg:min-h-0 lg:flex-1 overflow-hidden">
             <div className="p-4 border-b border-[#2a2a38]">
-              <h2 className="text-xl font-semibold text-white">Auction Chat</h2>
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h2 className="text-xl font-semibold text-white">Auction Chat</h2>
+                <span className="text-sm text-[#a0a0b8] whitespace-nowrap">{teamsRemaining} left</span>
+              </div>
+              {/* Progress: 56 auctionable teams total; bar fills as teams are sold */}
+              <div className="h-2 w-full rounded-full bg-[#2a2a38] overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-b from-[#4cc9f0] to-[#00ceb8] transition-all duration-300"
+                  style={{ width: `${Math.min(100, Math.max(0, Math.round(((56 - teamsRemaining) / 56) * 100)))}%` }}
+                />
+              </div>
             </div>
 
             {/* Chat Messages */}

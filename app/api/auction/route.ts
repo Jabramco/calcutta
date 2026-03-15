@@ -104,11 +104,24 @@ export async function GET(request: Request) {
       bidderSpend = await getOwnerTotalSpend(prisma, forUser)
     }
 
+    const unassignedTeams = await prisma.team.findMany({
+      where: {
+        ownerId: null,
+        OR: [
+          { isDogs: true },
+          { seed: { gte: 1, lte: 13 }, dogTeamId: null }
+        ]
+      },
+      select: { id: true }
+    })
+    const teamsRemaining = unassignedTeams.length
+
     return NextResponse.json({
       ...state,
       currentTeam,
       lastSale,
       events,
+      teamsRemaining,
       ...(bidderSpend !== null && { bidderSpend })
     })
   } catch (error: any) {
@@ -125,6 +138,7 @@ export async function GET(request: Request) {
       bids: [],
       lastBidTime: null,
       currentTeam: null,
+      teamsRemaining: 56,
       lastSale: null,
       events: []
     })

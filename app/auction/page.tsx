@@ -450,14 +450,14 @@ export default function AuctionPage() {
       }
 
       // If we just got state where countdown is already past sell time (e.g. we reconnected after being offline),
-      // don't auto-sell for 5s so we don't immediately fire sold on reconnect. Only set grace ONCE per team
-      // so it can expire and we actually sell (fixes "stuck" countdown when returning to tab).
+      // don't auto-sell for 5s so we don't immediately fire sold on reconnect. Only set grace on FIRST fetch after
+      // mount (or tab return), not on every poll — otherwise normal countdown-to-zero would trigger grace and freeze.
       if (data.currentTeam?.id != null && reconnectGraceSetForTeamRef.current !== null && reconnectGraceSetForTeamRef.current !== data.currentTeam.id) {
         reconnectGraceSetForTeamRef.current = null // new team, allow setting grace again if they return later
       }
       if (data.lastBidTime && data.bids?.length > 0 && data.currentBid > 0 && data.currentTeam?.id != null) {
         const elapsed = Date.now() - Number(data.lastBidTime)
-        if (elapsed >= COUNTDOWN_INTERVAL * 3 && reconnectGraceSetForTeamRef.current !== data.currentTeam.id) {
+        if (elapsed >= COUNTDOWN_INTERVAL * 3 && reconnectGraceSetForTeamRef.current !== data.currentTeam.id && isFirstFetchAfterMountRef.current) {
           reconnectGraceUntilRef.current = Date.now() + 5000
           reconnectGraceSetForTeamRef.current = data.currentTeam.id
         }
@@ -1022,7 +1022,7 @@ export default function AuctionPage() {
                     type="number"
                     value={bidAmount}
                     onChange={(e) => setBidAmount(e.target.value)}
-                    placeholder="Whole dollars only, min $5"
+                    placeholder="Spend money to make money, bradie"
                     className="flex-1 px-4 py-2 rounded-xl text-white placeholder-[#a0a0b8] focus:outline-none focus:ring-2 focus:ring-[#00ceb8] focus:border-transparent transition-all bg-[#0d0d14] border border-[#2a2a38]"
                     disabled={!auctionState?.currentTeam || (nextTeamRevealInSeconds != null && nextTeamRevealInSeconds > 0)}
                     step="1"

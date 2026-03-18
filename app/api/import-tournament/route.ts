@@ -97,16 +97,46 @@ export async function POST(request: Request) {
 
     console.log(`Found ${allTournamentEvents.length} tournament events, ${tournamentGames.length} completed`)
 
-    // Build bracket team list by region + seed from all events (so 2026 bracket works before any games complete)
+    // First Four = March 17–18 (play-in). Round of 64 begins March 19.
+    const isFirstFourEvent = (event: any) => {
+      const note = event.competitions?.[0]?.notes?.[0]?.headline as string | undefined
+      if (note?.toLowerCase().includes('first four')) return true
+      const date = event.date ? new Date(event.date) : null
+      if (!date) return false
+      const month = date.getUTCMonth()
+      const day = date.getUTCDate()
+      if (month === 2 && (day === 17 || day === 18)) return true
+      return false
+    }
+
+    // Build bracket team list: First Four winners get the seed slot; other games fill remaining slots.
     const REGIONS = ['East', 'West', 'South', 'Midwest'] as const
     const bracketByRegionSeed: Record<string, Map<number, string>> = {}
     REGIONS.forEach((r) => { bracketByRegionSeed[r] = new Map() })
-    for (const event of allTournamentEvents) {
+
+    const eventsByDate = [...allTournamentEvents].sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    for (const event of eventsByDate) {
       const note = event.competitions?.[0]?.notes?.[0]?.headline as string | undefined
       const regionMatch = note?.match(/(East|West|South|Midwest) Region/)
       const region = regionMatch ? regionMatch[1] : null
       if (!region || !REGIONS.includes(region as any)) continue
       const competitors = event.competitions?.[0]?.competitors ?? []
+      const completed = event.status?.type?.completed
+
+      if (isFirstFourEvent(event) && completed && competitors.length === 2) {
+        const winner = competitors.find((c: any) => c.winner)
+        if (winner) {
+          const winnerName = winner.team?.displayName || winner.team?.shortDisplayName
+          const winnerSeed = winner.curatedRank?.current
+          if (winnerName && winnerName !== 'TBD' && typeof winnerSeed === 'number' && winnerSeed >= 1 && winnerSeed <= 16) {
+            bracketByRegionSeed[region].set(winnerSeed, winnerName)
+          }
+        }
+        continue
+      }
+
+      if (isFirstFourEvent(event)) continue
+
       for (const c of competitors) {
         const displayName = c.team?.displayName || c.team?.shortDisplayName
         if (!displayName || displayName === 'TBD') continue
@@ -136,14 +166,15 @@ export async function POST(request: Request) {
     // Re-fetch teams so matching uses updated names
     const teamsAfterBracket = await prisma.team.findMany()
 
-    // --- ROUND WINS (Teams page checkmarks): unchanged. Only completed games update round64, round32, etc. ---
-    // When games finish, ESPN sets event.status.type.completed = true. We count wins per team, map to rounds, match API name → DB team, then update round flags + aggregate to Dogs.
-    // Track winners at each stage (completed games only)
+    // --- ROUND WINS: only Round of 64 onward. First Four (play-in) does NOT count as tournament wins. ---
+    const bracketGamesOnly = tournamentGames.filter((e: any) => !isFirstFourEvent(e))
+    console.log(`Excluding First Four: ${tournamentGames.length} completed → ${bracketGamesOnly.length} bracket games (Round of 64+)`)
+
     const teamWins: Map<string, Set<string>> = new Map()
     const roundOrder = ['round64', 'round32', 'sweet16', 'elite8', 'final4', 'championship']
     const teamGameCount: Map<string, number> = new Map()
 
-    for (const event of tournamentGames) {
+    for (const event of bracketGamesOnly) {
       if (!event.competitions?.[0]) continue
       
       const competition = event.competitions[0]
@@ -156,7 +187,7 @@ export async function POST(request: Request) {
 
       const winnerName = winner.team.displayName || winner.team.shortDisplayName
       
-      // Count games won
+      // Count games won (Round of 64, 32, S16, E8, F4, Championship only)
       const currentCount = teamGameCount.get(winnerName) || 0
       teamGameCount.set(winnerName, currentCount + 1)
     }

@@ -166,6 +166,11 @@ export async function POST(request: Request) {
     // Re-fetch teams so matching uses updated names
     const teamsAfterBracket = await prisma.team.findMany()
 
+    // Reset all round flags so this import is the single source of truth (no stale wins from prior imports).
+    await prisma.team.updateMany({
+      data: { round64: false, round32: false, sweet16: false, elite8: false, final4: false, championship: false }
+    })
+
     // --- ROUND WINS: only Round of 64 onward. First Four (play-in) does NOT count as tournament wins. ---
     const bracketGamesOnly = tournamentGames.filter((e: any) => !isFirstFourEvent(e))
     console.log(`Excluding First Four: ${tournamentGames.length} completed → ${bracketGamesOnly.length} bracket games (Round of 64+)`)

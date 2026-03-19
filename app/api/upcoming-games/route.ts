@@ -42,6 +42,22 @@ function effectiveOwner(t: TeamRow): Owner | null {
   return null
 }
 
+/** ESPN competitor.score is string, number, or { displayValue, value } */
+function competitorScore(c: { score?: unknown } | undefined): string | null {
+  if (!c) return null
+  const s = c.score as Record<string, unknown> | string | number | null | undefined
+  if (s == null) return null
+  if (typeof s === 'string' || typeof s === 'number') {
+    const t = String(s).trim()
+    return t.length ? t : null
+  }
+  if (typeof s === 'object') {
+    if (s.displayValue != null) return String(s.displayValue)
+    if (typeof s.value === 'number') return String(s.value)
+  }
+  return null
+}
+
 function matchTeam(
   espnName: string,
   teams: TeamRow[]
@@ -113,16 +129,29 @@ export async function GET(request: Request) {
       const h = home?.team?.displayName || home?.team?.shortDisplayName || 'TBD'
       const statusDetail = event.status?.type?.shortDetail || event.status?.type?.detail || 'Scheduled'
       const date = event.date as string
+      const isLive = event.status?.type?.state === 'in'
+      const completed = Boolean(event.status?.type?.completed)
+      const awayMatched = matchTeam(a, teamRows)
+      const homeMatched = matchTeam(h, teamRows)
+      const awayPts = competitorScore(away)
+      const homePts = competitorScore(home)
+      /** Avoid 0–0 noise before tip; show once live, final, or any non-zero side */
+      const showScores =
+        isLive ||
+        completed ||
+        (awayPts != null &&
+          homePts != null &&
+          (awayPts !== '0' || homePts !== '0'))
 
       return {
         id: String(event.id),
         date,
         dateMs: new Date(date).getTime(),
         status: statusDetail,
-        isLive: event.status?.type?.state === 'in',
+        isLive,
         bracketNote: note ?? null,
-        away: matchTeam(a, teamRows),
-        home: matchTeam(h, teamRows)
+        away: { ...awayMatched, score: showScores ? awayPts : null },
+        home: { ...homeMatched, score: showScores ? homePts : null }
       }
     })
 

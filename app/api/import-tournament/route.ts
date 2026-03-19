@@ -1,333 +1,45 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-
-// NCAA API endpoint - using the correct structure
-const NCAA_API_BASE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball'
-
-interface ESPNGame {
-  id: string
-  name?: string
-  season?: {
-    type?: number
-  }
-  status: {
-    type: {
-      completed: boolean
-    }
-  }
-  competitions: Array<{
-    competitors: Array<{
-      team: {
-        displayName: string
-        shortDisplayName: string
-      }
-      winner: boolean
-      seed?: number
-    }>
-    notes?: Array<{
-      headline?: string
-    }>
-  }>
-}
-
-// Map round names to our database fields
-const ROUND_MAP: Record<string, keyof typeof prisma.team.fields> = {
-  'first round': 'round64',
-  'round of 64': 'round64',
-  'second round': 'round32',
-  'round of 32': 'round32',
-  'sweet 16': 'sweet16',
-  'sweet sixteen': 'sweet16',
-  'elite 8': 'elite8',
-  'elite eight': 'elite8',
-  'final four': 'final4',
-  'semifinals': 'final4',
-  'championship': 'championship',
-  'final': 'championship'
-}
+import { runTournamentImport } from '@/lib/tournamentImport'
 
 export async function POST(request: Request) {
   try {
     const { year } = await request.json()
-    
-    if (!year) {
+    const y = Number(year)
+
+    if (!year || Number.isNaN(y) || y < 2000 || y > 2100) {
+      return NextResponse.json({ error: 'Valid year is required' }, { status: 400 })
+    }
+
+    const result = await runTournamentImport(y)
+
+    if (!result.success) {
       return NextResponse.json(
-        { error: 'Year is required' },
-        { status: 400 }
+        { error: result.error, details: result.details },
+        { status: result.status }
       )
-    }
-
-    console.log(`Fetching tournament data for ${year}...`)
-
-    // Fetch tournament games - ESPN API groups tournament ID by year
-    const tournamentUrl = `${NCAA_API_BASE}/scoreboard?limit=100&dates=${year}0315-${year}0410&groups=100`
-    
-    console.log(`Fetching from: ${tournamentUrl}`)
-    
-    const response = await fetch(tournamentUrl)
-
-    if (!response.ok) {
-      console.error(`ESPN API returned status: ${response.status}`)
-      const errorText = await response.text()
-      console.error('Error response:', errorText)
-      return NextResponse.json(
-        { error: `Failed to fetch tournament data: ${response.status}` },
-        { status: 500 }
-      )
-    }
-
-    const data = await response.json()
-    console.log(`Received ${data.events?.length || 0} events`)
-
-    if (!data.events || data.events.length === 0) {
-      return NextResponse.json(
-        { error: 'No tournament games found for this year' },
-        { status: 404 }
-      )
-    }
-
-    // All tournament events (scheduled + completed) for bracket team list
-    const allTournamentEvents = (data.events as any[]).filter(
-      (e: any) => e.season?.type === 3
-    )
-    // Completed games only for round wins
-    const tournamentGames = (data.events as any[])
-      .filter((event: any) => event.season?.type === 3 && event.status?.type?.completed)
-      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
-
-    console.log(`Found ${allTournamentEvents.length} tournament events, ${tournamentGames.length} completed`)
-
-    // First Four = March 17–18 (play-in). Round of 64 begins March 19.
-    const isFirstFourEvent = (event: any) => {
-      const note = event.competitions?.[0]?.notes?.[0]?.headline as string | undefined
-      if (note?.toLowerCase().includes('first four')) return true
-      const date = event.date ? new Date(event.date) : null
-      if (!date) return false
-      const month = date.getUTCMonth()
-      const day = date.getUTCDate()
-      if (month === 2 && (day === 17 || day === 18)) return true
-      return false
-    }
-
-    // Build bracket team list: First Four winners get the seed slot; other games fill remaining slots.
-    const REGIONS = ['East', 'West', 'South', 'Midwest'] as const
-    const bracketByRegionSeed: Record<string, Map<number, string>> = {}
-    REGIONS.forEach((r) => { bracketByRegionSeed[r] = new Map() })
-
-    const eventsByDate = [...allTournamentEvents].sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    for (const event of eventsByDate) {
-      const note = event.competitions?.[0]?.notes?.[0]?.headline as string | undefined
-      const regionMatch = note?.match(/(East|West|South|Midwest) Region/)
-      const region = regionMatch ? regionMatch[1] : null
-      if (!region || !REGIONS.includes(region as any)) continue
-      const competitors = event.competitions?.[0]?.competitors ?? []
-      const completed = event.status?.type?.completed
-
-      if (isFirstFourEvent(event) && completed && competitors.length === 2) {
-        const winner = competitors.find((c: any) => c.winner)
-        if (winner) {
-          const winnerName = winner.team?.displayName || winner.team?.shortDisplayName
-          const winnerSeed = winner.curatedRank?.current
-          if (winnerName && winnerName !== 'TBD' && typeof winnerSeed === 'number' && winnerSeed >= 1 && winnerSeed <= 16) {
-            bracketByRegionSeed[region].set(winnerSeed, winnerName)
-          }
-        }
-        continue
-      }
-
-      if (isFirstFourEvent(event)) continue
-
-      for (const c of competitors) {
-        const displayName = c.team?.displayName || c.team?.shortDisplayName
-        if (!displayName || displayName === 'TBD') continue
-        const seed = c.curatedRank?.current
-        if (typeof seed !== 'number' || seed < 1 || seed > 16) continue
-        const map = bracketByRegionSeed[region]
-        if (!map.has(seed)) map.set(seed, displayName)
-      }
-    }
-
-    // Get all teams from our database (display teams + dog members)
-    const teams = await prisma.team.findMany()
-    let updatedNames = 0
-    for (const team of teams) {
-      if (team.isDogs) continue
-      const map = bracketByRegionSeed[team.region]
-      if (!map) continue
-      const apiName = map.get(team.seed)
-      if (!apiName) continue
-      if (team.name !== apiName) {
-        await prisma.team.update({ where: { id: team.id }, data: { name: apiName } })
-        updatedNames++
-      }
-    }
-    console.log(`Updated ${updatedNames} team names from ${year} bracket`)
-
-    // Re-fetch teams so matching uses updated names
-    const teamsAfterBracket = await prisma.team.findMany()
-
-    // Reset all round flags so this import is the single source of truth (no stale wins from prior imports).
-    await prisma.team.updateMany({
-      data: { round64: false, round32: false, sweet16: false, elite8: false, final4: false, championship: false }
-    })
-
-    // --- ROUND WINS: only Round of 64 onward. First Four (play-in) does NOT count as tournament wins. ---
-    const bracketGamesOnly = tournamentGames.filter((e: any) => !isFirstFourEvent(e))
-    console.log(`Excluding First Four: ${tournamentGames.length} completed → ${bracketGamesOnly.length} bracket games (Round of 64+)`)
-
-    const teamWins: Map<string, Set<string>> = new Map()
-    const roundOrder = ['round64', 'round32', 'sweet16', 'elite8', 'final4', 'championship']
-    const teamGameCount: Map<string, number> = new Map()
-
-    for (const event of bracketGamesOnly) {
-      if (!event.competitions?.[0]) continue
-      
-      const competition = event.competitions[0]
-      const competitors = competition.competitors || []
-      
-      if (competitors.length !== 2) continue
-
-      const winner = competitors.find((c: any) => c.winner)
-      if (!winner) continue
-
-      const winnerName = winner.team.displayName || winner.team.shortDisplayName
-      
-      // Count games won (Round of 64, 32, S16, E8, F4, Championship only)
-      const currentCount = teamGameCount.get(winnerName) || 0
-      teamGameCount.set(winnerName, currentCount + 1)
-    }
-
-    console.log('\n=== Game Win Counts ===')
-    // Convert to array and sort by wins
-    const sortedTeams = Array.from(teamGameCount.entries())
-      .sort((a, b) => b[1] - a[1])
-    
-    for (const [team, wins] of sortedTeams) {
-      console.log(`${team}: ${wins} wins`)
-    }
-
-    // Map wins to rounds:
-    // 1 win = won round64 only
-    // 2 wins = won round64 + round32
-    // 3 wins = won round64 + round32 + sweet16
-    // 4 wins = won round64 + round32 + sweet16 + elite8
-    // 5 wins = won round64 + round32 + sweet16 + elite8 + final4
-    // 6 wins = won all rounds including championship
-    for (const [teamName, winCount] of teamGameCount.entries()) {
-      const rounds = new Set<string>()
-      
-      // Mark rounds based on number of wins
-      for (let i = 0; i < Math.min(winCount, 6); i++) {
-        rounds.add(roundOrder[i])
-      }
-      
-      if (rounds.size > 0) {
-        teamWins.set(teamName, rounds)
-      }
-    }
-
-    console.log('\n=== Final Team Progress ===')
-    // Find the champion (6 wins)
-    let championName = ''
-    for (const [team, rounds] of teamWins.entries()) {
-      const roundsList = Array.from(rounds).sort((a, b) => 
-        roundOrder.indexOf(a) - roundOrder.indexOf(b)
-      )
-      console.log(`${team}: ${roundsList.join(', ')}`)
-      
-      if (rounds.has('championship')) {
-        championName = team
-        console.log(`  *** CHAMPION ***`)
-      }
-    }
-
-    // Verify only one champion
-    const championCount = Array.from(teamWins.values())
-      .filter(rounds => rounds.has('championship')).length
-    
-    if (championCount !== 1) {
-      console.warn(`WARNING: Found ${championCount} champions, expected exactly 1`)
-    }
-
-    // Now update our database teams (including member teams 14/15/16 used for bracket match)
-    let updatedTeams = 0
-    const updates: string[] = []
-
-    for (const [apiTeamName, wonRounds] of teamWins.entries()) {
-      const matchedTeam = teamsAfterBracket.find((team) => {
-        const teamNameLower = team.name.toLowerCase()
-        const apiNameLower = apiTeamName.toLowerCase()
-        return (
-          teamNameLower === apiNameLower ||
-          teamNameLower.includes(apiNameLower) ||
-          apiNameLower.includes(teamNameLower)
-        )
-      })
-
-      if (matchedTeam) {
-        const updateData: any = {
-          round64: wonRounds.has('round64'),
-          round32: wonRounds.has('round32'),
-          sweet16: wonRounds.has('sweet16'),
-          elite8: wonRounds.has('elite8'),
-          final4: wonRounds.has('final4'),
-          championship: wonRounds.has('championship')
-        }
-        await prisma.team.update({
-          where: { id: matchedTeam.id },
-          data: updateData
-        })
-        updatedTeams++
-        const winCount = wonRounds.size
-        updates.push(`${matchedTeam.name}: ${winCount} win${winCount !== 1 ? 's' : ''}`)
-        console.log(`Updated: ${matchedTeam.name} - ${wonRounds.size} tournament wins`)
-      } else {
-        console.log(`No match found for: ${apiTeamName}`)
-      }
-    }
-
-    // Aggregate round wins from member teams (14, 15, 16) to their Dogs team
-    const dogsTeams = await prisma.team.findMany({ where: { isDogs: true }, include: { dogMembers: true } })
-    for (const dogsTeam of dogsTeams) {
-      const members = dogsTeam.dogMembers
-      if (members.length === 0) continue
-      const aggregated = {
-        round64: members.some((m) => m.round64),
-        round32: members.some((m) => m.round32),
-        sweet16: members.some((m) => m.sweet16),
-        elite8: members.some((m) => m.elite8),
-        final4: members.some((m) => m.final4),
-        championship: members.some((m) => m.championship)
-      }
-      await prisma.team.update({
-        where: { id: dogsTeam.id },
-        data: aggregated
-      })
-      console.log(`Aggregated Dogs ${dogsTeam.region}: rounds from ${members.length} members`)
     }
 
     return NextResponse.json({
       success: true,
-      message: tournamentGames.length > 0
-        ? `Successfully imported ${year} tournament results`
-        : `Updated ${year} bracket (${updatedNames} team names). No games completed yet.`,
-      champion: championName,
-      tournamentGames: tournamentGames.length,
-      updatedTeams,
-      updatedNames,
-      updates: updates.slice(0, 20)
+      message: result.message,
+      champion: result.champion,
+      tournamentGames: result.tournamentGames,
+      updatedTeams: result.updatedTeams,
+      updatedNames: result.updatedNames,
+      updates: result.updates
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { message?: string; stack?: string }
     console.error('Error importing tournament data:', error)
-    console.error('Error stack:', error?.stack)
+    console.error('Error stack:', err?.stack)
     return NextResponse.json(
-      { error: 'Failed to import tournament data', details: error?.message },
+      { error: 'Failed to import tournament data', details: err?.message },
       { status: 500 }
     )
   }
 }
 
-// Reset all tournament results
 export async function DELETE() {
   try {
     await prisma.team.updateMany({
@@ -345,10 +57,11 @@ export async function DELETE() {
       success: true,
       message: 'All tournament results have been reset'
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { message?: string }
     console.error('Error resetting tournament results:', error)
     return NextResponse.json(
-      { error: 'Failed to reset tournament results', details: error?.message },
+      { error: 'Failed to reset tournament results', details: err?.message },
       { status: 500 }
     )
   }

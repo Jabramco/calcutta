@@ -14,7 +14,13 @@ import { useRouter } from 'next/navigation'
 import { formatCurrency, formatROI } from '@/lib/calculations'
 import { LeaderboardEntry, GlobalStats } from '@/lib/types'
 
-type UpcomingSide = { name: string; ownerName: string | null; ownerId: number | null }
+type UpcomingSide = {
+  name: string
+  ownerName: string | null
+  ownerId: number | null
+  /** From ESPN when live / final (same scoreboard request — no extra API calls) */
+  score: string | null
+}
 type UpcomingGame = {
   id: string
   date: string
@@ -62,14 +68,39 @@ function formatGameTime(iso: string): string {
   }
 }
 
-/** Match ESPN game time to the user's local calendar date (same day as `ref`, default now). */
-function isGameOnLocalCalendarDay(isoDate: string, ref: Date = new Date()): boolean {
-  const game = new Date(isoDate)
-  if (Number.isNaN(game.getTime())) return false
+function MatchupCard({ g, liveHighlight }: { g: UpcomingGame; liveHighlight: boolean }) {
   return (
-    game.getFullYear() === ref.getFullYear() &&
-    game.getMonth() === ref.getMonth() &&
-    game.getDate() === ref.getDate()
+    <li
+      className={`min-w-0 rounded-xl bg-[#15151e]/90 backdrop-blur-sm border p-4 shadow-[0_8px_32px_rgba(0,0,0,0.25)] transition-all ${
+        liveHighlight
+          ? 'border-[#f5365c]/45 shadow-[0_0_0_1px_rgba(245,54,92,0.15),0_12px_40px_rgba(245,54,92,0.08)]'
+          : 'border-[#2a2a38] hover:border-[#00ceb8]/35 hover:shadow-[0_12px_40px_rgba(0,206,184,0.08)]'
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-2 text-xs text-[#a0a0b8] mb-3">
+        <span>{formatGameTime(g.date)}</span>
+        {g.isLive && (
+          <span className="px-2 py-0.5 rounded bg-[#f5365c]/20 text-[#f5365c] font-semibold">Live</span>
+        )}
+        <span className="text-[#6a6a82]">{g.status}</span>
+        {g.bracketNote && (
+          <span className="text-[#6a6a82] truncate max-w-full">{g.bracketNote}</span>
+        )}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 md:gap-4 items-center">
+        <TeamBlock side={g.away} align="left" />
+        <div className="flex flex-col items-center justify-center gap-1 text-center">
+          {(g.away.score != null || g.home.score != null) && (
+            <span className="text-lg font-bold tabular-nums text-white tracking-tight">
+              {g.away.score ?? '–'} <span className="text-[#6a6a82] font-normal">–</span>{' '}
+              {g.home.score ?? '–'}
+            </span>
+          )}
+          <span className="text-[#6a6a82] text-sm hidden md:block">@</span>
+        </div>
+        <TeamBlock side={g.home} align="right" />
+      </div>
+    </li>
   )
 }
 
@@ -193,9 +224,18 @@ export default function DashboardPage() {
     )
   }, [leaderboard, sortBy])
 
-  const gamesToday = useMemo(() => {
-    const now = new Date()
-    return games.filter((g) => isGameOnLocalCalendarDay(g.date, now))
+  /** Top section: in-progress games only */
+  const gamesLiveSorted = useMemo(() => {
+    return [...games.filter((g) => g.isLive)].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    )
+  }, [games])
+
+  /** Bottom section: scheduled / not yet live */
+  const gamesUpcomingSorted = useMemo(() => {
+    return [...games.filter((g) => !g.isLive)].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    )
   }, [games])
 
   if (loading) {
@@ -253,6 +293,13 @@ export default function DashboardPage() {
       </div>
 
       <div className="container mx-auto px-4 py-6 md:py-8 glass-content max-w-7xl">
+        <header className="mb-6">
+          <h1 className="text-3xl font-bold text-white tracking-tight">Dashboard</h1>
+          <p className="text-sm text-[#a0a0b8] mt-1 max-w-2xl">
+            Prize pool, payouts, standings, and matchups.
+          </p>
+        </header>
+
         <div
           className="dashboard-pay-banner relative z-0 mb-6 flex flex-col gap-3 rounded-xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
           role="alert"
@@ -282,12 +329,29 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        <header className="mb-6">
-          <h1 className="text-3xl font-bold text-white tracking-tight">Dashboard</h1>
-          <p className="text-sm text-[#a0a0b8] mt-1 max-w-2xl">
-            Prize pool, payouts, standings, and matchups.
-          </p>
-        </header>
+        {/* Live games only — under banner */}
+        <section className="mb-8">
+          <h2 className="text-lg font-bold text-white mb-5">Live games</h2>
+
+          {gamesLoading ? (
+            <p className="text-sm text-[#a0a0b8]">Loading schedule…</p>
+          ) : gamesMeta?.error && games.length === 0 ? (
+            <p className="text-sm text-[#fb6340]">{gamesMeta.error}</p>
+          ) : games.length === 0 ? (
+            <p className="text-sm text-[#a0a0b8]">
+              No upcoming or live tournament games in this window (mid-March through early April). Check back
+              during the tournament.
+            </p>
+          ) : gamesLiveSorted.length === 0 ? (
+            <p className="text-sm text-[#a0a0b8]">No games live right now.</p>
+          ) : (
+            <ul className="grid grid-cols-1 lg:grid-cols-2 gap-4 list-none p-0 m-0">
+              {gamesLiveSorted.map((g) => (
+                <MatchupCard key={g.id} g={g} liveHighlight />
+              ))}
+            </ul>
+          )}
+        </section>
 
         {/* Leaderboard (left) + Payout per win (right) */}
         <div className="flex flex-col lg:flex-row lg:items-stretch gap-4 lg:gap-6 mb-6">
@@ -393,60 +457,21 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Upcoming games — today only (local date); matchup cards float below */}
-        <section className="mt-2 mb-10">
-          <h2 className="text-lg font-bold text-white">Upcoming games</h2>
-          <p className="text-xs text-[#a0a0b8] mt-1 mb-5">
-            Showing games on{' '}
-            {new Date().toLocaleDateString(undefined, {
-              weekday: 'long',
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric'
-            })}{' '}
-            (your local time)
-          </p>
-
-          {gamesLoading ? (
-            <p className="text-sm text-[#a0a0b8]">Loading schedule…</p>
-          ) : gamesMeta?.error && games.length === 0 ? (
-            <p className="text-sm text-[#fb6340]">{gamesMeta.error}</p>
-          ) : games.length === 0 ? (
-            <p className="text-sm text-[#a0a0b8]">
-              No upcoming or live tournament games in this window (mid-March through early April). Check back
-              during the tournament.
-            </p>
-          ) : gamesToday.length === 0 ? (
-            <p className="text-sm text-[#a0a0b8]">No games scheduled for today.</p>
-          ) : (
-            <ul className="grid grid-cols-1 lg:grid-cols-2 gap-4 list-none p-0 m-0">
-              {gamesToday.map((g) => (
-                <li
-                  key={g.id}
-                  className="min-w-0 rounded-xl bg-[#15151e]/90 backdrop-blur-sm border border-[#2a2a38] p-4 shadow-[0_8px_32px_rgba(0,0,0,0.25)] hover:border-[#00ceb8]/35 hover:shadow-[0_12px_40px_rgba(0,206,184,0.08)] transition-all"
-                >
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-[#a0a0b8] mb-3">
-                    <span>{formatGameTime(g.date)}</span>
-                    {g.isLive && (
-                      <span className="px-2 py-0.5 rounded bg-[#f5365c]/20 text-[#f5365c] font-semibold">
-                        Live
-                      </span>
-                    )}
-                    <span className="text-[#6a6a82]">{g.status}</span>
-                    {g.bracketNote && (
-                      <span className="text-[#6a6a82] truncate max-w-full">{g.bracketNote}</span>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 md:gap-4 items-center">
-                    <TeamBlock side={g.away} align="left" />
-                    <span className="text-[#6a6a82] text-sm text-center hidden md:block">@</span>
-                    <TeamBlock side={g.home} align="right" />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        {/* Scheduled / not-yet-live — same ESPN feed as Live */}
+        {!gamesLoading && games.length > 0 && (
+          <section className="mb-10">
+            <h2 className="text-lg font-bold text-white mb-5">Upcoming games</h2>
+            {gamesUpcomingSorted.length === 0 ? (
+              <p className="text-sm text-[#a0a0b8]">No scheduled games in the current feed.</p>
+            ) : (
+              <ul className="grid grid-cols-1 lg:grid-cols-2 gap-4 list-none p-0 m-0">
+                {gamesUpcomingSorted.map((g) => (
+                  <MatchupCard key={g.id} g={g} liveHighlight={false} />
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
       </div>
     </>
   )

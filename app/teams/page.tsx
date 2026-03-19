@@ -189,7 +189,13 @@ export default function TeamsPage() {
           <h2 className="text-xl font-semibold text-white mb-4">Import tournament results</h2>
           <p className="text-sm text-[#a0a0b8] mb-4">
             Pulls {TOURNAMENT_IMPORT_YEAR} NCAA men&apos;s tournament data from ESPN and updates team names and
-            round wins.
+            round wins (same logic as the automatic sync).
+          </p>
+          <p className="text-xs text-[#6a6a82] mb-4 leading-relaxed">
+            <span className="text-[#00ceb8]/90 font-medium">Automatic updates:</span> If the host runs Vercel Cron
+            with <code className="text-[#a0a0b8]">CRON_SECRET</code> and{' '}
+            <code className="text-[#a0a0b8]">TOURNAMENT_IMPORT_YEAR</code> set, payouts refresh about every 15
+            minutes during the tournament—no need to click import unless you want an immediate pull.
           </p>
 
           <button

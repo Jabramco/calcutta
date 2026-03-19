@@ -355,9 +355,9 @@ export default function DashboardPage() {
           )}
         </section>
 
-        {/* Leaderboard (left) + Payout per win (right) */}
-        <div className="flex flex-col lg:flex-row lg:items-stretch gap-4 lg:gap-6 mb-6">
-          <div className="glass-card rounded-2xl border border-[#2a2a38] flex flex-col min-h-[260px] max-h-[420px] lg:flex-1 lg:min-w-0 order-1">
+        {/* Leaderboard */}
+        <div className="mb-6">
+          <div className="glass-card rounded-2xl border border-[#2a2a38] flex flex-col min-h-[260px] max-h-[420px] w-full">
             <div className="p-3 border-b border-[#2a2a38] flex items-center justify-between gap-2 shrink-0">
               <span className="text-sm font-semibold text-white">Leaderboard</span>
               <select
@@ -419,26 +419,32 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
-
-          {stats && (
-            <div className="glass-card rounded-2xl p-4 w-full lg:w-[200px] xl:w-[220px] shrink-0 border border-[#2a2a38] order-2 lg:max-h-[420px] lg:overflow-y-auto">
-              <div className="text-xs font-semibold text-[#00ceb8] uppercase tracking-wider mb-3">
-                Payout / win
-              </div>
-              <ul className="space-y-2 text-xs">
-                {PAYOUT_ROWS.map(({ key, label }) => (
-                  <li key={key} className="flex flex-col gap-0.5 border-b border-[#2a2a38]/80 pb-2 last:border-0 last:pb-0">
-                    <span className="text-[#6a6a82] leading-tight">{label}</span>
-                    <span className="text-white font-semibold tabular-nums">
-                      {formatCurrency(stats.payoutPerWin[key])}
-                    </span>
-                    <span className="text-[10px] text-[#6a6a82]">{stats.percentages[key]} of pot</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
+
+        {/* Payout — full-width row of small cards */}
+        {stats && (
+          <section className="mb-6 w-full" aria-labelledby="dashboard-payout-heading">
+            <h2 id="dashboard-payout-heading" className="text-lg font-bold text-white mb-3">
+              Payout
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 w-full">
+              {PAYOUT_ROWS.map(({ key, label }) => (
+                <div
+                  key={key}
+                  className="glass-card rounded-xl border border-[#2a2a38] px-3 py-2.5 sm:px-3.5 sm:py-3 min-w-0"
+                >
+                  <div className="text-[10px] sm:text-[11px] text-[#6a6a82] leading-snug line-clamp-2 mb-1">
+                    {label}
+                  </div>
+                  <div className="text-sm sm:text-base font-semibold text-white tabular-nums truncate" title={formatCurrency(stats.payoutPerWin[key])}>
+                    {formatCurrency(stats.payoutPerWin[key])}
+                  </div>
+                  <div className="text-[10px] text-[#6a6a82] mt-0.5">{stats.percentages[key]} of pot</div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Total prize pool — full width below */}
         {stats && (

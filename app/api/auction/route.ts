@@ -279,11 +279,12 @@ export async function POST(request: Request) {
           return { noOp: true, state: { ...state, currentTeam }, currentTeam, error: null, status: 200 }
         }
 
-        const MIN_BID_AGE_MS = 2000
+        // Require at least 10s since last bid so "Going once" (5s) and "Going TWICE" (10s) have always been reached before a sell
+        const MIN_BID_AGE_FOR_SELL_MS = 10_000
         const lastBidTimeMs = state.lastBidTime != null ? Number(state.lastBidTime) : 0
-        if (Date.now() - lastBidTimeMs < MIN_BID_AGE_MS) {
+        if (Date.now() - lastBidTimeMs < MIN_BID_AGE_FOR_SELL_MS) {
           const currentTeam = await tx.team.findUnique({ where: { id: state.currentTeamId } })
-          return { noOp: true, state: { ...state, currentTeam }, currentTeam, error: 'Please wait a moment before selling so others can see the bid.', status: 400 }
+          return { noOp: true, state: { ...state, currentTeam }, currentTeam, error: "Wait for 'Going once' and 'Going TWICE' before selling.", status: 400 }
         }
 
         let owner = await tx.owner.findFirst({ where: { name: state.currentBidder! } })

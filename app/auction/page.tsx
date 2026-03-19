@@ -27,6 +27,7 @@ interface ChatMessage {
 }
 
 const COUNTDOWN_INTERVAL = 5000 // 5 seconds between warnings
+const INTRO_BETWEEN_TEAMS_MS = 6000 // Countdown between teams ("Introducing next team in Xs")
 
 export default function AuctionPage() {
   const [auctionState, setAuctionState] = useState<AuctionState | null>(null)
@@ -61,7 +62,7 @@ export default function AuctionPage() {
   const [isInitialized, setIsInitialized] = useState(false)
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false })
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  /** 3s intro after currentTeam.id changes (sell / next team). Set synchronously in fetch so chat + UI stay in sync. */
+  /** Intro countdown after currentTeam.id changes (sell / next team). Set synchronously in fetch so chat + UI stay in sync. */
   const postSaleIntroEndRef = useRef(0)
   const lastPollTeamIdRef = useRef<number | null>(null)
   const [postSaleIntroSession, setPostSaleIntroSession] = useState(0)
@@ -89,7 +90,7 @@ export default function AuctionPage() {
     }
   }, [postSaleIntroSession])
 
-  // Safety: never block bidding more than 5s if intro ref stuck
+  // Safety: never block bidding longer than intro + buffer if intro ref stuck
   useEffect(() => {
     if (postSaleIntroEndRef.current <= Date.now()) return
     const t = setTimeout(() => {
@@ -98,7 +99,7 @@ export default function AuctionPage() {
         setPostSaleIntroTick((x) => x + 1)
         void fetchAuctionState()
       }
-    }, 5000)
+    }, INTRO_BETWEEN_TEAMS_MS + 2000)
     return () => clearTimeout(t)
   }, [postSaleIntroSession])
 
@@ -300,7 +301,8 @@ export default function AuctionPage() {
     }, 100) // Update every 100ms
 
     return () => clearInterval(interval)
-  }, [auctionState?.lastBidTime, auctionState?.currentTeam, auctionState?.isActive, auctionState?.bids])
+    // Depend on id/length not object refs so we don't tear down the interval on every poll when multiple people are bidding
+  }, [auctionState?.lastBidTime, auctionState?.currentTeam?.id, auctionState?.isActive, auctionState?.bids?.length])
 
   const fetchStats = async () => {
     try {
@@ -324,7 +326,7 @@ export default function AuctionPage() {
       const prevPollId = lastPollTeamIdRef.current
       const nextPollId = data.currentTeam?.id ?? null
       if (data.isActive && nextPollId != null && prevPollId != null && nextPollId !== prevPollId) {
-        postSaleIntroEndRef.current = Date.now() + 3000
+        postSaleIntroEndRef.current = Date.now() + INTRO_BETWEEN_TEAMS_MS
         setPostSaleIntroSession((s) => s + 1)
       }
       lastPollTeamIdRef.current = nextPollId
@@ -373,7 +375,7 @@ export default function AuctionPage() {
               ? [...messages, { type: 'warning' as const, message: 'Going once!', timestamp: now - COUNTDOWN_INTERVAL }, { type: 'warning' as const, message: 'Going TWICE!', timestamp: now }]
               : messages
 
-        // Hold back "Now auctioning" during 3s intro (same window as left-panel countdown)
+        // Hold back "Now auctioning" during intro (same window as left-panel countdown)
         const introEnd = postSaleIntroEndRef.current
         const inPostSaleIntro = introEnd > Date.now()
         const introSecChat = inPostSaleIntro ? Math.max(1, Math.ceil((introEnd - Date.now()) / 1000)) : 0
@@ -955,8 +957,9 @@ export default function AuctionPage() {
                   <>
                     <button
                       onClick={soldTeam}
-                      disabled={loading || !auctionState.currentBidder}
+                      disabled={loading || !auctionState.currentBidder || warningState !== 'twice'}
                       className="btn-gradient-dark w-full px-4 py-3 text-[#00ceb8] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                      title={warningState !== 'twice' && auctionState.currentBidder ? "Wait for 'Going once' and 'Going TWICE' before selling" : undefined}
                     >
                       Sold! (Manual)
                     </button>

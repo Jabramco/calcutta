@@ -24,11 +24,11 @@ function TeamRow({
 
   if (compact) {
     return (
-      <div className="px-2 py-1.5 flex items-start gap-2 min-w-0">
+      <div className="px-2 py-1.5 flex items-start gap-2 min-w-0 min-h-[48px]">
         <span className="text-[#00ceb8] font-bold tabular-nums text-[10px] w-4 shrink-0 pt-0.5">{slot.seed}</span>
         <div className="min-w-0 flex-1">
-          <div className="text-white font-medium text-[11px] leading-tight break-words">{slot.name}</div>
-          <div className="text-[10px] text-[#c8c8d8] truncate mt-0.5 leading-snug">
+          <div className="text-white font-medium text-[11px] leading-tight truncate" title={slot.name}>{slot.name}</div>
+          <div className="text-[10px] text-[#c8c8d8] truncate mt-0.5 leading-snug" title={t?.owner?.name ?? 'Unassigned'}>
             {t?.owner?.name ?? <span className="text-[#9a9ab0]">Unassigned</span>}
           </div>
         </div>
@@ -84,7 +84,7 @@ export function BracketMatchupCard({
   return (
     <div
       className={`rounded-xl border border-[#2a2a38] bg-[#15151e]/90 backdrop-blur-sm shadow-[0_8px_32px_rgba(0,0,0,0.2)] hover:border-[#00ceb8]/25 transition-colors overflow-hidden ${
-        compact ? 'min-w-[128px] max-w-[200px]' : 'min-w-[200px]'
+        compact ? 'min-w-[128px] max-w-[200px] min-h-[96px]' : 'min-w-[200px]'
       }`}
     >
       {!compact && (

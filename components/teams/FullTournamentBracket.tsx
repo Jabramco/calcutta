@@ -35,23 +35,46 @@ function Connector() {
 function AdvanceSlot({
   label,
   teamA,
-  teamB
+  teamB,
+  tall = false
 }: {
   label: string
-  teamA?: string | null
-  teamB?: string | null
+  teamA?: TeamWithOwner | null
+  teamB?: TeamWithOwner | null
+  tall?: boolean
 }) {
-  const hasTeams = Boolean(teamA || teamB)
+  const orderedTeams = [teamA ?? null, teamB ?? null].sort((a, b) => {
+    if (a && !b) return -1
+    if (!a && b) return 1
+    return 0
+  })
+  const primary = orderedTeams[0]
+  const secondary = orderedTeams[1]
+  const hasTeams = Boolean(primary || secondary)
+
+  const shortName = (t: TeamWithOwner | null | undefined) => {
+    if (!t?.name) return 'TBD'
+    return t.name.split(/\s+/)[0] || t.name
+  }
+
+  const ownerName = (t: TeamWithOwner | null | undefined) => t?.owner?.name ?? '—'
   return (
-    <div className="rounded-lg border border-dashed border-[#2a2a38] bg-[#0c0c12]/90 px-1.5 py-2 text-center min-h-[52px] flex flex-col items-center justify-center">
+    <div
+      className={`rounded-lg border border-dashed border-[#2a2a38] bg-[#0c0c12]/90 px-1.5 py-2 text-center flex flex-col items-center justify-center ${
+        tall ? 'min-h-[96px]' : 'min-h-[52px]'
+      }`}
+    >
       <span className="text-[8px] text-[#5a5a6e] uppercase tracking-wide leading-tight">{label}</span>
       {hasTeams ? (
-        <div className="mt-0.5 leading-tight">
-          <div className="text-[10px] text-white font-medium truncate max-w-[64px] sm:max-w-[72px]" title={teamA ?? 'TBD'}>
-            {teamA ?? 'TBD'}
+        <div className="mt-0.5 leading-tight w-full">
+          <div className="text-[10px] text-white font-medium truncate max-w-[64px] sm:max-w-[72px] mx-auto" title={primary?.name ?? 'TBD'}>
+            {shortName(primary)}
           </div>
-          <div className="text-[10px] text-[#6a6a82] truncate max-w-[64px] sm:max-w-[72px]" title={teamB ?? 'TBD'}>
-            {teamB ?? 'TBD'}
+          <div className="text-[9px] text-[#a0a0b8] truncate max-w-[64px] sm:max-w-[72px] mx-auto" title={ownerName(primary)}>
+            {ownerName(primary)}
+          </div>
+          <div className="text-[10px] text-[#6a6a82] truncate max-w-[64px] sm:max-w-[72px] mx-auto mt-0.5" title={secondary?.name ?? 'TBD'}>
+            {shortName(secondary)}
           </div>
         </div>
       ) : (
@@ -64,13 +87,21 @@ function AdvanceSlot({
 function winnerFromPair(
   a: TeamWithOwner | null | undefined,
   b: TeamWithOwner | null | undefined,
-  winKey: 'round64' | 'round32' | 'sweet16'
+  winKey: 'round64' | 'round32' | 'sweet16' | 'elite8'
 ): TeamWithOwner | null {
   const aWon = Boolean(a?.[winKey])
   const bWon = Boolean(b?.[winKey])
   if (aWon && !bWon) return a ?? null
   if (bWon && !aWon) return b ?? null
   return null
+}
+
+function pickTeamByWinKey(teams: TeamWithOwner[], winKey: 'elite8' | 'final4'): TeamWithOwner | null {
+  const winners = teams.filter((t) => Boolean(t[winKey]))
+  if (winners.length === 0) return null
+  if (winners.length === 1) return winners[0] ?? null
+  winners.sort((a, b) => Number(b.seed) - Number(a.seed))
+  return winners[0] ?? null
 }
 
 function RegionHalf({
@@ -97,8 +128,9 @@ function RegionHalf({
     [4, 5],
     [6, 7]
   ]
+  const roundOf32Teams = firstRoundWinners
   const roundOf32Winners = roundOf32Matchups.map(([a, b]) =>
-    winnerFromPair(firstRoundWinners[a], firstRoundWinners[b], 'round32')
+    winnerFromPair(roundOf32Teams[a], roundOf32Teams[b], 'round32')
   )
   const sweet16Matchups: ReadonlyArray<readonly [number, number]> = [
     [0, 1],
@@ -109,7 +141,7 @@ function RegionHalf({
   )
 
   const r64 = (
-    <div className="flex flex-col gap-1.5 justify-between shrink-0 min-h-[360px] py-0.5">
+    <div className="flex flex-col gap-1.5 shrink-0 py-0.5">
       {firstRoundPairs.map((pair, i) => (
         <BracketMatchupCard
           key={`${title}-${i}`}
@@ -123,34 +155,38 @@ function RegionHalf({
   )
 
   const r32 = (
-    <div className="flex flex-col gap-1.5 justify-between min-h-[360px] py-0.5 w-[72px] sm:w-[80px]">
-      {roundOf32Matchups.map(([a, b], i) => (
+    <div className="flex flex-col gap-1.5 py-0.5 w-[72px] sm:w-[88px]">
+      {roundOf32Teams.map((team, i) => (
         <AdvanceSlot
           key={`r32-${i}`}
           label="Round of 32"
-          teamA={firstRoundWinners[a]?.name}
-          teamB={firstRoundWinners[b]?.name}
+          teamA={team}
+          tall
         />
       ))}
     </div>
   )
 
   const s16 = (
-    <div className="flex flex-col gap-1.5 justify-around min-h-[360px] py-0.5 w-[72px] sm:w-[80px]">
-      {sweet16Matchups.map(([a, b], i) => (
-        <AdvanceSlot
-          key={`s16-${i}`}
-          label="Sweet 16"
-          teamA={roundOf32Winners[a]?.name}
-          teamB={roundOf32Winners[b]?.name}
-        />
+    <div className="flex flex-col gap-1.5 py-0.5 w-[72px] sm:w-[88px]">
+      {roundOf32Winners.map((team, i) => (
+        <div key={`s16-lane-${i}`} className="min-h-[198px] flex items-center">
+          <AdvanceSlot
+            key={`s16-${i}`}
+            label="Sweet 16"
+            teamA={team}
+            tall
+          />
+        </div>
       ))}
     </div>
   )
 
   const e8 = (
-    <div className="flex flex-col justify-center min-h-[360px] py-0.5 w-[72px] sm:w-[88px]">
-      <AdvanceSlot label="Elite 8" teamA={sweet16Winners[0]?.name} teamB={sweet16Winners[1]?.name} />
+    <div className="flex flex-col gap-1.5 justify-center min-h-[810px] py-0.5 w-[72px] sm:w-[88px]">
+      {sweet16Winners.map((team, i) => (
+        <AdvanceSlot key={`e8-${i}`} label="Elite 8" teamA={team} tall />
+      ))}
     </div>
   )
 
@@ -158,44 +194,44 @@ function RegionHalf({
   const cols =
     side === 'left' ? (
       <>
-        <div>
+        <div className="shrink-0">
           <RoundLabel>First round</RoundLabel>
           {r64}
         </div>
         <Connector />
-        <div>
+        <div className="shrink-0">
           <RoundLabel>Round of 32</RoundLabel>
           {r32}
         </div>
         <Connector />
-        <div>
+        <div className="shrink-0">
           <RoundLabel>Sweet 16</RoundLabel>
           {s16}
         </div>
         <Connector />
-        <div>
+        <div className="shrink-0">
           <RoundLabel>Elite 8</RoundLabel>
           {e8}
         </div>
       </>
     ) : (
       <>
-        <div>
+        <div className="shrink-0">
           <RoundLabel>Elite 8</RoundLabel>
           {e8}
         </div>
         <Connector />
-        <div>
+        <div className="shrink-0">
           <RoundLabel>Sweet 16</RoundLabel>
           {s16}
         </div>
         <Connector />
-        <div>
+        <div className="shrink-0">
           <RoundLabel>Round of 32</RoundLabel>
           {r32}
         </div>
         <Connector />
-        <div>
+        <div className="shrink-0">
           <RoundLabel>First round</RoundLabel>
           {r64}
         </div>
@@ -204,7 +240,7 @@ function RegionHalf({
 
   return (
     <div
-      className={`rounded-xl border p-2 sm:p-3 backdrop-blur-sm shadow-[0_8px_32px_rgba(0,0,0,0.15)] ${accentClass}`}
+      className={`inline-block rounded-xl border p-2 sm:p-3 backdrop-blur-sm shadow-[0_8px_32px_rgba(0,0,0,0.15)] overflow-hidden ${accentClass}`}
     >
       <div className="text-center mb-2">
         <span className="inline-block px-3 py-0.5 rounded-md bg-[#1c1c28]/90 border border-[#2a2a38] text-[11px] font-bold text-white tracking-wide">
@@ -216,9 +252,23 @@ function RegionHalf({
   )
 }
 
-function CenterHub() {
+function CenterHub({
+  finalFourTeams,
+  nationalChampionshipTeams
+}: {
+  finalFourTeams: Array<TeamWithOwner | null>
+  nationalChampionshipTeams: Array<TeamWithOwner | null>
+}) {
   return (
     <div className="flex flex-col justify-center gap-4 px-2 sm:px-4 min-w-[120px] sm:min-w-[160px] shrink-0">
+      <div className="rounded-xl border border-[#2a2a38] bg-[#15151e]/95 p-3 text-center">
+        <div className="text-[9px] uppercase tracking-[0.15em] text-[#a0a0b8] font-bold mb-2">National Championship</div>
+        <div className="space-y-2">
+          <AdvanceSlot label="Championship" teamA={nationalChampionshipTeams[0] ?? null} />
+          <AdvanceSlot label="Championship" teamA={nationalChampionshipTeams[1] ?? null} />
+        </div>
+      </div>
+
       <div className="rounded-xl border border-[#00ceb8]/30 bg-[#0f1514]/95 p-3 text-center shadow-[0_0_24px_rgba(0,206,184,0.08)]">
         <div className="flex justify-center mb-2">
           <Image
@@ -231,14 +281,10 @@ function CenterHub() {
         </div>
         <div className="text-[9px] uppercase tracking-[0.15em] text-[#00ceb8]/90 font-bold mb-2">Final Four</div>
         <div className="space-y-2">
-          <AdvanceSlot label="Semifinal" />
-          <AdvanceSlot label="Semifinal" />
-        </div>
-      </div>
-      <div className="rounded-xl border border-[#2a2a38] bg-[#15151e]/95 p-3 text-center">
-        <div className="text-[9px] uppercase tracking-[0.15em] text-[#a0a0b8] font-bold mb-2">National champion</div>
-        <div className="rounded-lg border border-dashed border-[#00ceb8]/25 bg-[#0c0c12]/90 px-2 py-4">
-          <span className="text-[10px] text-[#4a4a58]">TBD</span>
+          <AdvanceSlot label="Final Four" teamA={finalFourTeams[0] ?? null} />
+          <AdvanceSlot label="Final Four" teamA={finalFourTeams[1] ?? null} />
+          <AdvanceSlot label="Final Four" teamA={finalFourTeams[2] ?? null} />
+          <AdvanceSlot label="Final Four" teamA={finalFourTeams[3] ?? null} />
         </div>
       </div>
     </div>
@@ -250,6 +296,25 @@ export function FullTournamentBracket({
 }: {
   teamsByRegion: Record<string, TeamWithOwner[]>
 }) {
+  const finalFourTeams: Array<TeamWithOwner | null> = [
+    pickTeamByWinKey(teamsByRegion.South || [], 'elite8'),
+    pickTeamByWinKey(teamsByRegion.West || [], 'elite8'),
+    pickTeamByWinKey(teamsByRegion.East || [], 'elite8'),
+    pickTeamByWinKey(teamsByRegion.Midwest || [], 'elite8')
+  ]
+
+  const championshipCandidates = [
+    ...(teamsByRegion.South || []),
+    ...(teamsByRegion.West || []),
+    ...(teamsByRegion.East || []),
+    ...(teamsByRegion.Midwest || [])
+  ].filter((t) => Boolean(t.final4))
+
+  const nationalChampionshipTeams: Array<TeamWithOwner | null> = [
+    championshipCandidates[0] ?? null,
+    championshipCandidates[1] ?? null
+  ]
+
   return (
     <div>
       <header className="mb-4">
@@ -261,7 +326,7 @@ export function FullTournamentBracket({
         <div className="min-w-[1040px]">
           <div className="flex flex-row items-stretch justify-center gap-3 sm:gap-4">
             {/* Left: South + West → center */}
-            <div className="flex flex-col gap-4 flex-1 min-w-0 lg:max-w-[520px]">
+            <div className="flex flex-col gap-4 items-start">
               {REGIONS_LEFT.map(({ name, accent }) => (
                 <RegionHalf
                   key={name}
@@ -273,10 +338,13 @@ export function FullTournamentBracket({
               ))}
             </div>
 
-            <CenterHub />
+            <CenterHub
+              finalFourTeams={finalFourTeams}
+              nationalChampionshipTeams={nationalChampionshipTeams}
+            />
 
             {/* Right: East + Midwest → center (mirror) */}
-            <div className="flex flex-col gap-4 flex-1 min-w-0 max-w-[500px]">
+            <div className="flex flex-col gap-4 items-start">
               {REGIONS_RIGHT.map(({ name, accent }) => (
                 <RegionHalf
                   key={name}

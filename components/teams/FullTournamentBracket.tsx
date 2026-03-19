@@ -183,7 +183,7 @@ function RegionHalf({
   )
 
   const e8 = (
-    <div className="flex flex-col gap-1.5 justify-center min-h-[810px] py-0.5 w-[72px] sm:w-[88px]">
+    <div className="flex flex-1 flex-col justify-center gap-12 sm:gap-20 py-0.5 min-h-0 w-full">
       {sweet16Winners.map((team, i) => (
         <AdvanceSlot key={`e8-${i}`} label="Elite 8" teamA={team} tall />
       ))}
@@ -209,14 +209,14 @@ function RegionHalf({
           {s16}
         </div>
         <Connector />
-        <div className="shrink-0">
+        <div className="shrink-0 flex flex-col self-stretch min-h-0 w-[72px] sm:w-[88px]">
           <RoundLabel>Elite 8</RoundLabel>
           {e8}
         </div>
       </>
     ) : (
       <>
-        <div className="shrink-0">
+        <div className="shrink-0 flex flex-col self-stretch min-h-0 w-[72px] sm:w-[88px]">
           <RoundLabel>Elite 8</RoundLabel>
           {e8}
         </div>

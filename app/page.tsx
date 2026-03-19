@@ -54,6 +54,27 @@ const PAYOUT_ROWS: { key: keyof GlobalStats['payoutPerWin']; label: string }[] =
   { key: 'championship', label: 'Championship' }
 ]
 
+/** Podium row + rank — 1st green (animated via .leaderboard-podium-first), 2nd cyan, 3rd purple */
+function leaderboardPodiumRowClass(index: number): string {
+  if (index === 0) {
+    return ''
+  }
+  if (index === 1) {
+    return 'border-l-[3px] border-[#4cc9f0]/80 bg-gradient-to-r from-[#4cc9f0]/14 via-[#3a9dc2]/[0.06] to-transparent shadow-[inset_0_0_0_1px_rgba(76,201,240,0.12)]'
+  }
+  if (index === 2) {
+    return 'border-l-[3px] border-[#a78bfa]/85 bg-gradient-to-r from-[#9d4edd]/16 via-[#7c3aed]/[0.07] to-transparent shadow-[inset_0_0_0_1px_rgba(167,139,250,0.12)]'
+  }
+  return ''
+}
+
+function leaderboardPodiumRankClass(index: number): string {
+  if (index === 0) return 'text-[#47d89d] font-bold'
+  if (index === 1) return 'text-[#7dd3fc] font-bold'
+  if (index === 2) return 'text-[#d8b4fe] font-bold'
+  return 'text-[#6a6a82]'
+}
+
 function formatGameTime(iso: string): string {
   try {
     return new Date(iso).toLocaleString(undefined, {
@@ -452,10 +473,31 @@ export default function DashboardPage() {
                       <tr
                         key={entry.owner.id}
                         onClick={() => router.push(`/owners/${entry.owner.id}`)}
-                        className="border-t border-[#2a2a38]/60 hover:bg-[#23232f]/80 cursor-pointer transition-colors"
+                        className={`border-t border-[#2a2a38]/60 cursor-pointer transition-colors ${
+                          index === 0
+                            ? 'leaderboard-podium-first'
+                            : index < 3
+                              ? `hover:bg-[#23232f]/80 ${leaderboardPodiumRowClass(index)}`
+                              : 'hover:bg-[#23232f]/80'
+                        }`}
                       >
-                        <td className="pl-3 pr-1 py-2.5 text-[#6a6a82] tabular-nums">{index + 1}</td>
-                        <td className="pr-2 py-2.5 font-medium text-[#00ceb8] truncate max-w-[140px] md:max-w-[200px]" title={entry.owner.name}>
+                        <td
+                          className={`pl-3 pr-1 py-2.5 tabular-nums ${leaderboardPodiumRankClass(index)}`}
+                          title={index === 0 ? '1st' : index === 1 ? '2nd' : index === 2 ? '3rd' : undefined}
+                        >
+                          <span className="inline-flex items-center gap-1">
+                            {index === 0 && <span aria-hidden>🥇</span>}
+                            {index === 1 && <span aria-hidden>🥈</span>}
+                            {index === 2 && <span aria-hidden>🥉</span>}
+                            {index + 1}
+                          </span>
+                        </td>
+                        <td
+                          className={`pr-2 py-2.5 font-medium truncate max-w-[140px] md:max-w-[200px] ${
+                            index < 3 ? 'text-white' : 'text-[#00ceb8]'
+                          }`}
+                          title={entry.owner.name}
+                        >
                           {entry.owner.name}
                         </td>
                         <td className="pr-2 py-2.5 text-right text-white tabular-nums text-xs">

@@ -520,3 +520,40 @@ input:focus, textarea:focus, select:focus {
   pointer-events: none;
 }
 
+/* Leaderboard — subtle animated gradient for 1st place (green accent family) */
+@keyframes leaderboard-podium-first-flow {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+tr.leaderboard-podium-first {
+  border-left: 3px solid rgba(45, 206, 137, 0.85);
+  box-shadow: inset 0 0 0 1px rgba(45, 206, 137, 0.14);
+  background-image: linear-gradient(
+    100deg,
+    rgba(45, 206, 137, 0.2) 0%,
+    rgba(36, 165, 111, 0.1) 38%,
+    rgba(71, 216, 157, 0.14) 62%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: leaderboard-podium-first-flow 5s ease-in-out infinite;
+}
+
+tr.leaderboard-podium-first:hover {
+  filter: brightness(1.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  tr.leaderboard-podium-first {
+    animation: none;
+    background-position: 0% 50%;
+  }
+}
+

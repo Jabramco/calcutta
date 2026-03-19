@@ -16,9 +16,9 @@ export async function GET() {
 
     const totalPot = calculateTotalPot(teams)
 
-    const leaderboard = owners.map(owner => 
-      calculateOwnerStats(owner, owner.teams, totalPot)
-    )
+    const leaderboard = owners
+      .map((owner) => calculateOwnerStats(owner, owner.teams, totalPot))
+      .filter((entry) => entry.totalInvestment > 1)
 
     // Sort by ROI descending
     leaderboard.sort((a, b) => b.roi - a.roi)

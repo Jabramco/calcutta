@@ -8,6 +8,8 @@ export interface OwnerWithTeams extends Owner {
 
 export interface TeamWithOwner extends Team {
   owner: Owner | null
+  /** Included on Dogs aggregate rows from `/api/teams`. */
+  dogMembers?: Team[]
 }
 
 export interface LeaderboardEntry {

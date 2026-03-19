@@ -1,33 +1,28 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { TeamWithOwner, Owner } from '@/lib/types'
-import { formatCurrency } from '@/lib/calculations'
+import { TeamWithOwner } from '@/lib/types'
 import { useAuth } from '@/lib/hooks/useAuth'
+import { RegionalTeamsBracket } from '@/components/teams/RegionalTeamsBracket'
+import { FullTournamentBracket } from '@/components/teams/FullTournamentBracket'
+
+/** Year passed to ESPN bracket import (admin “Import results”). */
+const TOURNAMENT_IMPORT_YEAR = 2026
 
 export default function TeamsPage() {
   const { user: currentUser } = useAuth()
   const [teams, setTeams] = useState<TeamWithOwner[]>([])
-  const [owners, setOwners] = useState<Owner[]>([])
   const [loading, setLoading] = useState(true)
-  const [expandedRegion, setExpandedRegion] = useState<string | null>('South')
-  const [tournamentYear, setTournamentYear] = useState('2024')
   const [importing, setImporting] = useState(false)
   const [importMessage, setImportMessage] = useState('')
+  const [bracketLayout, setBracketLayout] = useState<'regional' | 'full'>('full')
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [teamsRes, ownersRes] = await Promise.all([
-          fetch('/api/teams', { cache: 'no-store' }),
-          fetch('/api/owners', { cache: 'no-store' })
-        ])
-
+        const teamsRes = await fetch('/api/teams', { cache: 'no-store' })
         const teamsData = await teamsRes.json()
-        const ownersData = await ownersRes.json()
-
         setTeams(teamsData)
-        setOwners(ownersData)
       } catch (error) {
         console.error('Error fetching data:', error)
       } finally {
@@ -101,11 +96,6 @@ export default function TeamsPage() {
   }
 
   const importTournamentResults = async () => {
-    if (!tournamentYear || isNaN(Number(tournamentYear))) {
-      alert('Please enter a valid year')
-      return
-    }
-
     setImporting(true)
     setImportMessage('')
 
@@ -113,7 +103,7 @@ export default function TeamsPage() {
       const response = await fetch('/api/import-tournament', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ year: tournamentYear })
+        body: JSON.stringify({ year: TOURNAMENT_IMPORT_YEAR })
       })
 
       const data = await response.json()
@@ -130,38 +120,6 @@ export default function TeamsPage() {
     } catch (error) {
       console.error('Error importing tournament results:', error)
       setImportMessage('✗ Failed to import tournament data')
-    } finally {
-      setImporting(false)
-    }
-  }
-
-  const resetTournamentResults = async () => {
-    if (!confirm('Are you sure you want to reset all tournament results? This will remove all win checkboxes.')) {
-      return
-    }
-
-    setImporting(true)
-    setImportMessage('')
-
-    try {
-      const response = await fetch('/api/import-tournament', {
-        method: 'DELETE'
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        setImportMessage('✓ All tournament results have been reset')
-        // Refresh teams data
-        const teamsRes = await fetch('/api/teams', { cache: 'no-store' })
-        const teamsData = await teamsRes.json()
-        setTeams(teamsData)
-      } else {
-        setImportMessage(`✗ ${data.error || 'Failed to reset tournament results'}`)
-      }
-    } catch (error) {
-      console.error('Error resetting tournament results:', error)
-      setImportMessage('✗ Failed to reset tournament results')
     } finally {
       setImporting(false)
     }
@@ -187,7 +145,35 @@ export default function TeamsPage() {
       <div className="container mx-auto px-4 py-8 glass-content">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <h1 className="text-3xl font-bold text-white">Teams</h1>
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-center">
+          <div
+            className="inline-flex rounded-lg border border-[#2a2a38] bg-[#1c1c28]/80 p-0.5"
+            role="group"
+            aria-label="Bracket layout"
+          >
+            <button
+              type="button"
+              onClick={() => setBracketLayout('full')}
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                bracketLayout === 'full'
+                  ? 'bg-[#00ceb8]/20 text-[#00ceb8]'
+                  : 'text-[#a0a0b8] hover:text-white'
+              }`}
+            >
+              Full bracket
+            </button>
+            <button
+              type="button"
+              onClick={() => setBracketLayout('regional')}
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                bracketLayout === 'regional'
+                  ? 'bg-[#00ceb8]/20 text-[#00ceb8]'
+                  : 'text-[#a0a0b8] hover:text-white'
+              }`}
+            >
+              By region
+            </button>
+          </div>
           <button
             onClick={downloadCSV}
             className="btn-gradient-primary px-6 py-2 rounded-lg font-medium transition-all"
@@ -200,42 +186,19 @@ export default function TeamsPage() {
       {/* Admin Tournament Import Controls */}
       {currentUser?.role === 'admin' && (
         <div className="glass-card p-6 rounded-2xl mb-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Import Tournament Results</h2>
+          <h2 className="text-xl font-semibold text-white mb-4">Import tournament results</h2>
           <p className="text-sm text-[#a0a0b8] mb-4">
-            Import real tournament data from NCAA API to automatically update team wins for each round.
+            Pulls {TOURNAMENT_IMPORT_YEAR} NCAA men&apos;s tournament data from ESPN and updates team names and
+            round wins.
           </p>
-          
-          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
-            <div className="flex-1">
-              <label className="block text-sm text-[#a0a0b8] mb-2">Tournament Year</label>
-              <input
-                type="number"
-                value={tournamentYear}
-                onChange={(e) => setTournamentYear(e.target.value)}
-                placeholder="2024"
-                min="2010"
-                max="2030"
-                className="w-full px-4 py-2 bg-[#1c1c28] border border-[#2a2a38] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#00ceb8] focus:border-transparent transition-all"
-                disabled={importing}
-              />
-            </div>
-            
-            <button
-              onClick={importTournamentResults}
-              disabled={importing}
-              className="btn-gradient-primary px-6 py-2 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-            >
-              {importing ? 'Importing...' : 'Import Results'}
-            </button>
-            
-            <button
-              onClick={resetTournamentResults}
-              disabled={importing}
-              className="btn-gradient-danger-outline px-6 py-2 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-            >
-              Reset All
-            </button>
-          </div>
+
+          <button
+            onClick={importTournamentResults}
+            disabled={importing}
+            className="btn-gradient-primary px-6 py-2 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {importing ? 'Importing…' : `Import ${TOURNAMENT_IMPORT_YEAR} results`}
+          </button>
 
           {importMessage && (
             <div className={`mt-4 p-3 rounded-lg text-sm ${
@@ -249,80 +212,11 @@ export default function TeamsPage() {
         </div>
       )}
 
-      <div className="space-y-4">
-        {regions.map(region => {
-          const regionTeams = teamsByRegion[region] || []
-          const isExpanded = expandedRegion === region
-
-          return (
-            <div key={region} className="glass-card rounded-2xl overflow-hidden">
-              <button
-                onClick={() => setExpandedRegion(isExpanded ? null : region)}
-                className="w-full px-6 py-4 flex justify-between items-center hover:bg-[#1c1c28] transition-colors"
-              >
-                <h2 className="text-xl font-semibold text-white">{region} Region <span className="text-[#a0a0b8] text-base font-normal">({regionTeams.length} teams)</span></h2>
-                <span className="text-2xl text-[#00ceb8]">{isExpanded ? '−' : '+'}</span>
-              </button>
-
-              {isExpanded && (
-                <div className="border-t border-[#2a2a38]">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full">
-                      <thead>
-                        <tr className="bg-[#1c1c28] border-b border-[#2a2a38]">
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-[#a0a0b8] uppercase">Seed</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-[#a0a0b8] uppercase">Team</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-[#a0a0b8] uppercase">Owner</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-[#a0a0b8] uppercase">Cost</th>
-                          <th className="px-4 py-3 text-center text-xs font-semibold text-[#a0a0b8] uppercase">64</th>
-                          <th className="px-4 py-3 text-center text-xs font-semibold text-[#a0a0b8] uppercase">32</th>
-                          <th className="px-4 py-3 text-center text-xs font-semibold text-[#a0a0b8] uppercase">S16</th>
-                          <th className="px-4 py-3 text-center text-xs font-semibold text-[#a0a0b8] uppercase">E8</th>
-                          <th className="px-4 py-3 text-center text-xs font-semibold text-[#a0a0b8] uppercase">F4</th>
-                          <th className="px-4 py-3 text-center text-xs font-semibold text-[#a0a0b8] uppercase">Champ</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#2a2a38]">
-                        {regionTeams.map(team => (
-                          <tr key={team.id} className="hover:bg-[#1c1c28] transition-colors">
-                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-white">
-                              {'isDogs' in team && team.isDogs ? '14–16' : team.seed}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-white font-medium">
-                              {'dogMembers' in team && Array.isArray(team.dogMembers) && team.dogMembers.length > 0
-                                ? `${team.name}: ${(team.dogMembers as { name: string }[]).map(m => m.name).join(', ')}`
-                                : team.name}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              <div className="text-sm text-[#a0a0b8]">
-                                {team.owner?.name || <span className="text-[#6a6a82]">Unassigned</span>}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              <div className="text-sm text-white font-medium">
-                                {formatCurrency(Number(team.cost))}
-                              </div>
-                            </td>
-                            {['round64', 'round32', 'sweet16', 'elite8', 'final4', 'championship'].map(round => (
-                              <td key={round} className="px-4 py-3 whitespace-nowrap text-center">
-                                {team[round as keyof TeamWithOwner] ? (
-                                  <span className="text-[#2dce89] text-lg">✓</span>
-                                ) : (
-                                  <span className="text-[#2a2a38] text-lg">-</span>
-                                )}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+      {bracketLayout === 'regional' ? (
+        <RegionalTeamsBracket teamsByRegion={teamsByRegion} />
+      ) : (
+        <FullTournamentBracket teamsByRegion={teamsByRegion} />
+      )}
     </div>
     </>
   )

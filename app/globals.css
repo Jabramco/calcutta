@@ -396,3 +396,26 @@ input:focus, textarea:focus, select:focus {
   color: #0d0d14;
 }
 
+/* Dashboard "Bradie" button — money falls full viewport */
+@keyframes money-rain-fall {
+  0% {
+    transform: translateY(-12vh) translateX(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(115vh) translateX(var(--money-drift, 0px)) rotate(540deg);
+    opacity: 0.9;
+  }
+}
+
+.money-rain-particle {
+  position: absolute;
+  top: 0;
+  animation-name: money-rain-fall;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+  will-change: transform;
+  user-select: none;
+  filter: drop-shadow(0 0 6px rgba(0, 206, 184, 0.45));
+}
+

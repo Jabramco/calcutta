@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { formatCurrency } from '@/lib/calculations'
+import { AUCTION_PAGE_READONLY as AUCTION_ENV_READONLY } from '@/lib/auctionReadOnly'
 
 interface AuctionState {
   isActive: boolean
@@ -69,12 +70,21 @@ export default function AuctionPage() {
   const [postSaleIntroTick, setPostSaleIntroTick] = useState(0)
   const pendingNextTeamChatEventRef = useRef<ChatMessage | null>(null)
 
+  /** Env flag OR auction finished in DB (no need to set .env locally). */
+  const auctionUiReadOnly =
+    AUCTION_ENV_READONLY ||
+    (auctionState !== null &&
+      !auctionState.isActive &&
+      auctionState.currentTeamId == null &&
+      teamsRemaining === 0)
+
   useEffect(() => {
     auctionStateRef.current = auctionState
   }, [auctionState])
 
   // Tick every 250ms while post-sale intro is active (drives countdown UI + chat seconds)
   useEffect(() => {
+    if (auctionUiReadOnly) return
     const end = postSaleIntroEndRef.current
     if (end <= Date.now()) return
     const iv = setInterval(() => setPostSaleIntroTick((t) => t + 1), 250)
@@ -92,6 +102,7 @@ export default function AuctionPage() {
 
   // Safety: never block bidding longer than intro + buffer if intro ref stuck
   useEffect(() => {
+    if (auctionUiReadOnly) return
     if (postSaleIntroEndRef.current <= Date.now()) return
     const t = setTimeout(() => {
       if (postSaleIntroEndRef.current > Date.now()) {
@@ -101,10 +112,11 @@ export default function AuctionPage() {
       }
     }, INTRO_BETWEEN_TEAMS_MS + 2000)
     return () => clearTimeout(t)
-  }, [postSaleIntroSession])
+  }, [postSaleIntroSession, auctionUiReadOnly])
 
   // Update "Introducing next team in Xs" in chat every tick during intro
   useEffect(() => {
+    if (auctionUiReadOnly) return
     if (postSaleIntroEndRef.current <= Date.now()) return
     const sec = Math.max(1, Math.ceil((postSaleIntroEndRef.current - Date.now()) / 1000))
     setChatMessages((prev) => {
@@ -112,7 +124,7 @@ export default function AuctionPage() {
       if (!last || last.type !== 'system' || !last.message?.startsWith('Introducing next team in')) return prev
       return [...prev.slice(0, -1), { ...last, message: `Introducing next team in ${sec} second${sec !== 1 ? 's' : ''}...`, timestamp: Date.now() }]
     })
-  }, [postSaleIntroTick])
+  }, [postSaleIntroTick, auctionUiReadOnly])
 
   // Fetch current user
   useEffect(() => {
@@ -191,6 +203,11 @@ export default function AuctionPage() {
 
   // Countdown timer logic
   useEffect(() => {
+    if (auctionUiReadOnly) {
+      setCountdown(null)
+      setWarningState('none')
+      return
+    }
     if (!auctionState?.isActive || !auctionState.currentTeam) {
       setCountdown(null)
       setWarningState('none')
@@ -302,7 +319,13 @@ export default function AuctionPage() {
 
     return () => clearInterval(interval)
     // Depend on id/length not object refs so we don't tear down the interval on every poll when multiple people are bidding
-  }, [auctionState?.lastBidTime, auctionState?.currentTeam?.id, auctionState?.isActive, auctionState?.bids?.length])
+  }, [
+    auctionUiReadOnly,
+    auctionState?.lastBidTime,
+    auctionState?.currentTeam?.id,
+    auctionState?.isActive,
+    auctionState?.bids?.length
+  ])
 
   const fetchStats = async () => {
     try {
@@ -325,7 +348,19 @@ export default function AuctionPage() {
 
       const prevPollId = lastPollTeamIdRef.current
       const nextPollId = data.currentTeam?.id ?? null
-      if (data.isActive && nextPollId != null && prevPollId != null && nextPollId !== prevPollId) {
+      const responseSaysAuctionFinished =
+        !data.isActive &&
+        !data.currentTeamId &&
+        typeof data.teamsRemaining === 'number' &&
+        data.teamsRemaining === 0
+      if (
+        !AUCTION_ENV_READONLY &&
+        !responseSaysAuctionFinished &&
+        data.isActive &&
+        nextPollId != null &&
+        prevPollId != null &&
+        nextPollId !== prevPollId
+      ) {
         postSaleIntroEndRef.current = Date.now() + INTRO_BETWEEN_TEAMS_MS
         setPostSaleIntroSession((s) => s + 1)
       }
@@ -483,6 +518,7 @@ export default function AuctionPage() {
   }
 
   const startAuction = async () => {
+    if (auctionUiReadOnly) return
     setLoading(true)
     try {
       const response = await fetch('/api/auction', {
@@ -518,6 +554,7 @@ export default function AuctionPage() {
   }
 
   const nextTeam = async () => {
+    if (auctionUiReadOnly) return
     setLoading(true)
     try {
       const response = await fetch('/api/auction', {
@@ -546,6 +583,7 @@ export default function AuctionPage() {
   }
 
   const placeBid = async (overrideAmount?: number) => {
+    if (auctionUiReadOnly) return
     if (!currentUser) return
     const amount = overrideAmount ?? parseFloat(bidAmount)
     if (overrideAmount == null && !bidAmount) return
@@ -600,6 +638,7 @@ export default function AuctionPage() {
   const SOLD_REQUEST_TIMEOUT_MS = 12000
 
   const autoSoldTeam = async () => {
+    if (auctionUiReadOnly) return
     const state = auctionStateRef.current
     if (!state?.currentBidder || state.currentBid === 0) return
     if (!state?.bids || state.bids.length === 0) return
@@ -689,6 +728,7 @@ export default function AuctionPage() {
   }
 
   const stopAuction = async () => {
+    if (auctionUiReadOnly) return
     setLoading(true)
     try {
       await fetch('/api/auction', {
@@ -711,6 +751,7 @@ export default function AuctionPage() {
   }
 
   const resumeAuction = async () => {
+    if (auctionUiReadOnly) return
     setLoading(true)
     try {
       await fetch('/api/auction', {
@@ -733,6 +774,7 @@ export default function AuctionPage() {
   }
 
   const restartAuction = async () => {
+    if (auctionUiReadOnly) return
     if (!confirm('Are you sure you want to restart the auction? This will reset all teams, clear all owners, and set the prize pool to $0. This action cannot be undone.')) {
       return
     }
@@ -783,7 +825,11 @@ export default function AuctionPage() {
 
   const postSaleIntroEnd = postSaleIntroEndRef.current
   const postSaleIntroSecondsLeft = postSaleIntroEnd > Date.now() ? Math.max(0, Math.ceil((postSaleIntroEnd - Date.now()) / 1000)) : 0
-  const showPostSaleIntro = !!auctionState?.isActive && !!auctionState?.currentTeam && postSaleIntroSecondsLeft > 0
+  const showPostSaleIntro =
+    !auctionUiReadOnly &&
+    !!auctionState?.isActive &&
+    !!auctionState?.currentTeam &&
+    postSaleIntroSecondsLeft > 0
   void postSaleIntroTick
 
   return (
@@ -805,9 +851,32 @@ export default function AuctionPage() {
       {/* On desktop: constrain to viewport so chat fits without page scroll (nav ~5rem) */}
       <div className="flex flex-col lg:h-[calc(100vh-5rem)] min-h-0 lg:overflow-hidden glass-content">
         <div className="container mx-auto px-4 pt-6 pb-4 flex-shrink-0">
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold text-white">Live Auction</h1>
-            <div className="text-right">
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
+            <div>
+              <h1 className="text-3xl font-bold text-white">
+                {auctionUiReadOnly ? 'Auction archive' : 'Live Auction'}
+              </h1>
+              {auctionUiReadOnly && (
+                <p className="text-sm text-[#a0a0b8] mt-2 max-w-2xl">
+                  Read-only archive — bidding and admin controls are hidden.
+                  {AUCTION_ENV_READONLY ? (
+                    <>
+                      {' '}
+                      Forced by{' '}
+                      <span className="text-[#00ceb8] font-mono text-xs">NEXT_PUBLIC_AUCTION_READONLY</span>
+                      . Clear it and redeploy to restore the full UI.
+                    </>
+                  ) : (
+                    <>
+                      {' '}
+                      The auction has finished (no teams left to sell in the pool). To start a new auction later,
+                      prepare teams/state from the admin flow, then refresh.
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
+            <div className="text-right sm:shrink-0">
               <div className="text-sm text-[#a0a0b8]">Current Prize Pool</div>
               <div className="text-2xl font-bold text-[#00ceb8]">{formatCurrency(totalPot ?? 0)}</div>
             </div>
@@ -914,13 +983,17 @@ export default function AuctionPage() {
           ) : auctionState?.isActive && !auctionState.currentTeam ? (
               <div className="text-center py-8">
                 <div className="text-[#a0a0b8] mb-4">{teamsRemaining} teams remaining</div>
-                <button
-                  onClick={nextTeam}
-                  disabled={loading}
-                  className="btn-gradient-primary px-6 py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
-                >
-                  Next Team (Random)
-                </button>
+                {!auctionUiReadOnly ? (
+                  <button
+                    onClick={nextTeam}
+                    disabled={loading}
+                    className="btn-gradient-primary px-6 py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                  >
+                    Next Team (Random)
+                  </button>
+                ) : (
+                  <p className="text-sm text-[#6a6a82]">Next team (admin) is disabled in archive mode.</p>
+                )}
               </div>
             ) : (
               <div className="text-center py-8 text-[#a0a0b8]">
@@ -931,8 +1004,8 @@ export default function AuctionPage() {
               </div>
             )}
 
-          {/* Auction Controls - Admin Only */}
-          {currentUser?.role === 'admin' && (
+          {/* Auction Controls - Admin Only (hidden in read-only archive mode; code unchanged) */}
+          {currentUser?.role === 'admin' && !auctionUiReadOnly && (
             <div className="glass-card rounded-2xl p-6">
               <h2 className="text-xl font-semibold mb-4 text-white">Controls</h2>
               
@@ -1030,9 +1103,13 @@ export default function AuctionPage() {
               <div ref={chatEndRef} />
             </div>
 
-            {/* Bid Input — flex-shrink-0 so it stays visible at bottom */}
+            {/* Bid Input — hidden in read-only archive; full UI preserved for next auction */}
             <div className="flex-shrink-0 p-4 border-t border-[#2a2a38] glass-input">
-              {currentUser ? (
+              {auctionUiReadOnly ? (
+                <p className="text-center text-sm text-[#a0a0b8] py-2">
+                  Bidding is disabled — this page is an archive of the completed auction.
+                </p>
+              ) : currentUser ? (
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="number"

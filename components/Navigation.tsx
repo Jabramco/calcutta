@@ -61,8 +61,8 @@ export default function Navigation() {
 
   const links = [
     { href: '/', label: 'Dashboard' },
-    { href: '/auction', label: 'Auction' },
     { href: '/teams', label: 'Teams' },
+    { href: '/auction', label: 'Auction' },
     { href: '/finances', label: 'Finances', adminOnly: true },
     { href: '/admin', label: 'Admin', adminOnly: true }
   ]

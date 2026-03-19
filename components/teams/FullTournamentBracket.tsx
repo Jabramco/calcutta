@@ -32,13 +32,45 @@ function Connector() {
   )
 }
 
-function AdvanceSlot({ label }: { label: string }) {
+function AdvanceSlot({
+  label,
+  teamA,
+  teamB
+}: {
+  label: string
+  teamA?: string | null
+  teamB?: string | null
+}) {
+  const hasTeams = Boolean(teamA || teamB)
   return (
     <div className="rounded-lg border border-dashed border-[#2a2a38] bg-[#0c0c12]/90 px-1.5 py-2 text-center min-h-[52px] flex flex-col items-center justify-center">
       <span className="text-[8px] text-[#5a5a6e] uppercase tracking-wide leading-tight">{label}</span>
-      <span className="text-[10px] text-[#3d3d4d] mt-0.5">TBD</span>
+      {hasTeams ? (
+        <div className="mt-0.5 leading-tight">
+          <div className="text-[10px] text-white font-medium truncate max-w-[64px] sm:max-w-[72px]" title={teamA ?? 'TBD'}>
+            {teamA ?? 'TBD'}
+          </div>
+          <div className="text-[10px] text-[#6a6a82] truncate max-w-[64px] sm:max-w-[72px]" title={teamB ?? 'TBD'}>
+            {teamB ?? 'TBD'}
+          </div>
+        </div>
+      ) : (
+        <span className="text-[10px] text-[#3d3d4d] mt-0.5">TBD</span>
+      )}
     </div>
   )
+}
+
+function winnerFromPair(
+  a: TeamWithOwner | null | undefined,
+  b: TeamWithOwner | null | undefined,
+  winKey: 'round64' | 'round32' | 'sweet16'
+): TeamWithOwner | null {
+  const aWon = Boolean(a?.[winKey])
+  const bWon = Boolean(b?.[winKey])
+  if (aWon && !bWon) return a ?? null
+  if (bWon && !aWon) return b ?? null
+  return null
 }
 
 function RegionHalf({
@@ -52,13 +84,37 @@ function RegionHalf({
   teams: TeamWithOwner[]
   side: 'left' | 'right'
 }) {
+  const firstRoundPairs = FIRST_ROUND_SEED_PAIRS.map(([topSeed, bottomSeed]) => ({
+    top: resolveBracketSlot(teams, topSeed),
+    bottom: resolveBracketSlot(teams, bottomSeed)
+  }))
+  const firstRoundWinners = firstRoundPairs.map((pair) =>
+    winnerFromPair(pair.top.team, pair.bottom.team, 'round64')
+  )
+  const roundOf32Matchups: ReadonlyArray<readonly [number, number]> = [
+    [0, 1],
+    [2, 3],
+    [4, 5],
+    [6, 7]
+  ]
+  const roundOf32Winners = roundOf32Matchups.map(([a, b]) =>
+    winnerFromPair(firstRoundWinners[a], firstRoundWinners[b], 'round32')
+  )
+  const sweet16Matchups: ReadonlyArray<readonly [number, number]> = [
+    [0, 1],
+    [2, 3]
+  ]
+  const sweet16Winners = sweet16Matchups.map(([a, b]) =>
+    winnerFromPair(roundOf32Winners[a], roundOf32Winners[b], 'sweet16')
+  )
+
   const r64 = (
     <div className="flex flex-col gap-1.5 justify-between shrink-0 min-h-[360px] py-0.5">
-      {FIRST_ROUND_SEED_PAIRS.map(([topSeed, bottomSeed], i) => (
+      {firstRoundPairs.map((pair, i) => (
         <BracketMatchupCard
           key={`${title}-${i}`}
-          top={resolveBracketSlot(teams, topSeed)}
-          bottom={resolveBracketSlot(teams, bottomSeed)}
+          top={pair.top}
+          bottom={pair.bottom}
           pairIndex={i}
           compact
         />
@@ -68,23 +124,33 @@ function RegionHalf({
 
   const r32 = (
     <div className="flex flex-col gap-1.5 justify-between min-h-[360px] py-0.5 w-[72px] sm:w-[80px]">
-      {[0, 1, 2, 3].map((i) => (
-        <AdvanceSlot key={`r32-${i}`} label="Round of 32" />
+      {roundOf32Matchups.map(([a, b], i) => (
+        <AdvanceSlot
+          key={`r32-${i}`}
+          label="Round of 32"
+          teamA={firstRoundWinners[a]?.name}
+          teamB={firstRoundWinners[b]?.name}
+        />
       ))}
     </div>
   )
 
   const s16 = (
     <div className="flex flex-col gap-1.5 justify-around min-h-[360px] py-0.5 w-[72px] sm:w-[80px]">
-      {[0, 1].map((i) => (
-        <AdvanceSlot key={`s16-${i}`} label="Sweet 16" />
+      {sweet16Matchups.map(([a, b], i) => (
+        <AdvanceSlot
+          key={`s16-${i}`}
+          label="Sweet 16"
+          teamA={roundOf32Winners[a]?.name}
+          teamB={roundOf32Winners[b]?.name}
+        />
       ))}
     </div>
   )
 
   const e8 = (
     <div className="flex flex-col justify-center min-h-[360px] py-0.5 w-[72px] sm:w-[88px]">
-      <AdvanceSlot label="Elite 8" />
+      <AdvanceSlot label="Elite 8" teamA={sweet16Winners[0]?.name} teamB={sweet16Winners[1]?.name} />
     </div>
   )
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { Owner } from '@prisma/client'
+import { maybeAutoSyncTournament } from '@/lib/autoSyncTournament'
 
 const NCAA_API_BASE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball'
 
@@ -80,6 +81,8 @@ function matchTeam(
 
 export async function GET(request: Request) {
   try {
+    await maybeAutoSyncTournament()
+
     const { searchParams } = new URL(request.url)
     const yearParam = searchParams.get('year')
     const year = yearParam ? parseInt(yearParam, 10) : new Date().getUTCFullYear()

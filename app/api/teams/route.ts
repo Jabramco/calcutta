@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { maybeAutoSyncTournament } from '@/lib/autoSyncTournament'
 
 export async function GET() {
   try {
+    await maybeAutoSyncTournament()
+
     // Only show seeds 1–13 and Dogs (exclude member teams 14/15/16); include member names for Dogs
     const teams = await prisma.team.findMany({
       where: { dogTeamId: null },

@@ -481,3 +481,42 @@ input:focus, textarea:focus, select:focus {
   filter: drop-shadow(0 0 8px rgba(255, 140, 120, 0.65)) drop-shadow(0 0 14px rgba(220, 60, 50, 0.35));
 }
 
+@keyframes badgers-shimmer-sweep {
+  0% {
+    transform: translateX(-140%) skewX(-20deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.22;
+  }
+  50% {
+    opacity: 0.45;
+  }
+  100% {
+    transform: translateX(180%) skewX(-20deg);
+    opacity: 0;
+  }
+}
+
+.badgers-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.badgers-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 35%;
+  background: linear-gradient(
+    110deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.3) 45%,
+    rgba(255, 255, 255, 0.55) 50%,
+    rgba(255, 255, 255, 0.3) 55%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: badgers-shimmer-sweep 1.8s ease-in-out infinite;
+  pointer-events: none;
+}
+

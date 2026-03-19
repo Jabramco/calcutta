@@ -119,6 +119,8 @@ export default function DashboardPage() {
   const moneyRainClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [dishRainParticles, setDishRainParticles] = useState<RainParticle[]>([])
   const dishRainClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [showBadgersModal, setShowBadgersModal] = useState(false)
+  const badgersModalCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const spawnRain = useCallback(
     (
@@ -168,8 +170,24 @@ export default function DashboardPage() {
     return () => {
       if (moneyRainClearRef.current) clearTimeout(moneyRainClearRef.current)
       if (dishRainClearRef.current) clearTimeout(dishRainClearRef.current)
+      if (badgersModalCloseRef.current) clearTimeout(badgersModalCloseRef.current)
     }
   }, [])
+
+  useEffect(() => {
+    if (!showBadgersModal) return
+    if (badgersModalCloseRef.current) clearTimeout(badgersModalCloseRef.current)
+    badgersModalCloseRef.current = setTimeout(() => {
+      setShowBadgersModal(false)
+      badgersModalCloseRef.current = null
+    }, 5000)
+    return () => {
+      if (badgersModalCloseRef.current) {
+        clearTimeout(badgersModalCloseRef.current)
+        badgersModalCloseRef.current = null
+      }
+    }
+  }, [showBadgersModal])
 
   useEffect(() => {
     async function fetchData() {
@@ -240,6 +258,14 @@ export default function DashboardPage() {
     )
   }, [games])
 
+  const hasLiveWisconsinGame = useMemo(() => {
+    return gamesLiveSorted.some((g) => {
+      const away = g.away.name.toLowerCase()
+      const home = g.home.name.toLowerCase()
+      return away.includes('wisconsin') || home.includes('wisconsin')
+    })
+  }, [gamesLiveSorted])
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -250,6 +276,20 @@ export default function DashboardPage() {
 
   return (
     <>
+      {showBadgersModal && (
+        <div className="fixed inset-0 z-[350] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="glass-card rounded-2xl border border-[#2a2a38] p-4 sm:p-5 max-w-xl w-full">
+            <div className="badgers-shimmer rounded-xl overflow-hidden">
+              <img
+                src="/wisconsin.png"
+                alt="Wisconsin celebration"
+                className="block w-full h-auto object-cover"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {(moneyRainParticles.length > 0 || dishRainParticles.length > 0) && (
         <div
           className="fixed inset-0 z-[300] pointer-events-none overflow-hidden"
@@ -302,34 +342,57 @@ export default function DashboardPage() {
           </p>
         </header>
 
-        <div
-          className="dashboard-pay-banner relative z-0 mb-6 flex flex-col gap-3 rounded-xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-          role="alert"
-        >
-          <div className="relative z-10 flex min-w-0 items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/25 backdrop-blur-sm ring-1 ring-white/15" aria-hidden>
-              <svg
-                className="h-7 w-7 text-white"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-                aria-hidden
-              >
-                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
-              </svg>
-            </span>
-            <p className="text-sm font-semibold text-white drop-shadow-sm sm:text-base">
-              Kial, Fewl, and Mic. Pay Fammy
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={makeDishesRain}
-            className="relative z-10 shrink-0 rounded-lg border border-red-400/50 bg-gradient-to-b from-[#e11d48] to-[#9f1239] px-4 py-2 text-sm font-bold text-white shadow-[0_4px_18px_rgba(220,38,38,0.45)] transition-all hover:brightness-110 hover:shadow-[0_6px_24px_rgba(220,38,38,0.55)] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-[#1a0a0c]"
+        {hasLiveWisconsinGame ? (
+          <div
+            className="relative z-0 mb-6 flex flex-col gap-3 rounded-xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between border border-red-300/45 bg-gradient-to-r from-[#65191f] via-[#8b2329] to-[#6c171d] shadow-[0_10px_34px_rgba(120,20,20,0.4)]"
+            role="alert"
           >
-            Do dishes
-          </button>
-        </div>
+            <div className="relative z-10 flex min-w-0 items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/20 backdrop-blur-sm ring-1 ring-white/15 overflow-hidden">
+                <img src="/badger.png" alt="" className="h-full w-full object-cover" />
+              </span>
+              <p className="text-sm font-semibold text-white drop-shadow-sm sm:text-base">
+                Ope, go badgers der devin
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowBadgersModal(true)}
+              className="relative z-10 shrink-0 rounded-lg border border-red-200/50 bg-gradient-to-b from-[#f8d2d2] to-[#f1baba] px-4 py-2 text-sm font-bold text-[#5f0f15] shadow-[0_4px_18px_rgba(255,210,210,0.25)] transition-all hover:brightness-105 hover:shadow-[0_6px_24px_rgba(255,210,210,0.35)] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-red-200 focus:ring-offset-2 focus:ring-offset-[#2f0c0f]"
+            >
+              Badgers
+            </button>
+          </div>
+        ) : (
+          <div
+            className="dashboard-pay-banner relative z-0 mb-6 flex flex-col gap-3 rounded-xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            role="alert"
+          >
+            <div className="relative z-10 flex min-w-0 items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/25 backdrop-blur-sm ring-1 ring-white/15" aria-hidden>
+                <svg
+                  className="h-7 w-7 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden
+                >
+                  <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+                </svg>
+              </span>
+              <p className="text-sm font-semibold text-white drop-shadow-sm sm:text-base">
+                Kial, Fewl, and Mic. Pay Fammy
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={makeDishesRain}
+              className="relative z-10 shrink-0 rounded-lg border border-red-400/50 bg-gradient-to-b from-[#e11d48] to-[#9f1239] px-4 py-2 text-sm font-bold text-white shadow-[0_4px_18px_rgba(220,38,38,0.45)] transition-all hover:brightness-110 hover:shadow-[0_6px_24px_rgba(220,38,38,0.55)] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-[#1a0a0c]"
+            >
+              Do dishes
+            </button>
+          </div>
+        )}
 
         {/* Live games only — under banner */}
         <section className="mb-8">

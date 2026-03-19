@@ -73,14 +73,16 @@ function MatchupCard({ g, liveHighlight }: { g: UpcomingGame; liveHighlight: boo
     <li
       className={`min-w-0 rounded-xl bg-[#15151e]/90 backdrop-blur-sm border p-4 shadow-[0_8px_32px_rgba(0,0,0,0.25)] transition-all ${
         liveHighlight
-          ? 'border-[#f5365c]/45 shadow-[0_0_0_1px_rgba(245,54,92,0.15),0_12px_40px_rgba(245,54,92,0.08)]'
+          ? 'border-[#a78bfa]/50 shadow-[0_0_0_1px_rgba(167,139,250,0.2),0_8px_36px_rgba(139,92,246,0.18),0_0_48px_rgba(157,78,221,0.08)]'
           : 'border-[#2a2a38] hover:border-[#00ceb8]/35 hover:shadow-[0_12px_40px_rgba(0,206,184,0.08)]'
       }`}
     >
       <div className="flex flex-wrap items-center gap-2 text-xs text-[#a0a0b8] mb-3">
         <span>{formatGameTime(g.date)}</span>
         {g.isLive && (
-          <span className="px-2 py-0.5 rounded bg-[#f5365c]/20 text-[#f5365c] font-semibold">Live</span>
+          <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wide text-white bg-gradient-to-r from-[#c084fc] via-[#9d4edd] to-[#7c3aed] shadow-[0_2px_14px_rgba(157,78,221,0.45)] ring-1 ring-white/10">
+            Live
+          </span>
         )}
         <span className="text-[#6a6a82]">{g.status}</span>
         {g.bracketNote && (

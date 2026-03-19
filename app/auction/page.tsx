@@ -195,12 +195,16 @@ export default function AuctionPage() {
       setWarningState('none')
       lastAnnouncedWarning.current = 'none'
       hasAutoSold.current = false
+      currentTeamIdRef.current = null
+      lastAnnouncedTeamId.current = null
       return
     }
 
-    // Reset warning tracker if it's a new team
+    // Reset warning tracker if it's a new team. Keep refs in sync with state here only
+    // so the interval never sees currentTeamIdRef ahead of auctionStateRef (which caused the countdown to freeze).
     if (currentTeamIdRef.current !== auctionState.currentTeam.id) {
       currentTeamIdRef.current = auctionState.currentTeam.id
+      lastAnnouncedTeamId.current = auctionState.currentTeam.id
       lastAnnouncedWarning.current = 'none'
       lastAnnouncedBucketRef.current = 0
       lastSetWarningStateRef.current = 'none'
@@ -387,13 +391,8 @@ export default function AuctionPage() {
           ]
         }
         setChatMessages(messages)
-        if (data.currentTeam) {
-          lastAnnouncedTeamId.current = data.currentTeam.id
-          currentTeamIdRef.current = data.currentTeam.id
-        } else {
-          lastAnnouncedTeamId.current = null
-          currentTeamIdRef.current = null
-        }
+        // Do not update currentTeamIdRef/lastAnnouncedTeamId here; countdown effect syncs them with state
+        // so the interval never bails with refTeam !== latest.currentTeam.id and freezes the countdown.
         lastBidCount.current = data.bids?.length ?? 0
         if (data.lastSale?.teamName) lastShownSaleTeamRef.current = data.lastSale.teamName
         isFirstFetchAfterMountRef.current = false
@@ -414,8 +413,7 @@ export default function AuctionPage() {
         if (data.currentTeam) {
           const prevTeamId = lastAnnouncedTeamId.current
           const isNewTeam = prevTeamId !== data.currentTeam.id
-          lastAnnouncedTeamId.current = data.currentTeam.id
-          currentTeamIdRef.current = data.currentTeam.id
+          // Refs updated by countdown effect so interval stays in sync with state
           setWarningState('none')
           lastAnnouncedWarning.current = 'none'
           hasAutoSold.current = false

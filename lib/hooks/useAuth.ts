@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 export interface User {
   id: number
@@ -10,11 +10,7 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    fetchUser()
-  }, [])
-
-  const fetchUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const response = await fetch('/api/auth/me', { cache: 'no-store' })
       if (response.ok) {
@@ -29,7 +25,19 @@ export function useAuth() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  return { user, loading }
+  useEffect(() => {
+    void refreshUser()
+  }, [refreshUser])
+
+  useEffect(() => {
+    const onVis = () => {
+      if (!document.hidden) void refreshUser()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [refreshUser])
+
+  return { user, loading, refreshUser }
 }

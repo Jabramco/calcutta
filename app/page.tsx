@@ -1,6 +1,15 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
+import {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+  type Dispatch,
+  type SetStateAction,
+  type MutableRefObject
+} from 'react'
 import { useRouter } from 'next/navigation'
 import { formatCurrency, formatROI } from '@/lib/calculations'
 import { LeaderboardEntry, GlobalStats } from '@/lib/types'
@@ -17,8 +26,10 @@ type UpcomingGame = {
 }
 
 const MONEY_RAIN_SYMBOLS = ['$', '💵'] as const
+/** Plate-forward mix for “Do dishes” confetti */
+const DISH_RAIN_SYMBOLS = ['🍽️', '🍽️', '🍽️', '🥘', '🍴', '🥣'] as const
 
-type MoneyRainParticle = {
+type RainParticle = {
   id: number
   leftPct: number
   durationSec: number
@@ -71,41 +82,59 @@ export default function DashboardPage() {
   const [games, setGames] = useState<UpcomingGame[]>([])
   const [gamesMeta, setGamesMeta] = useState<{ error?: string } | null>(null)
   const [gamesLoading, setGamesLoading] = useState(true)
-  const [moneyRainParticles, setMoneyRainParticles] = useState<MoneyRainParticle[]>([])
+  const [moneyRainParticles, setMoneyRainParticles] = useState<RainParticle[]>([])
   const moneyRainClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [dishRainParticles, setDishRainParticles] = useState<RainParticle[]>([])
+  const dishRainClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const spawnRain = useCallback(
+    (
+      symbols: readonly string[],
+      count: number,
+      setParticles: Dispatch<SetStateAction<RainParticle[]>>,
+      clearRef: MutableRefObject<ReturnType<typeof setTimeout> | null>
+    ) => {
+      if (clearRef.current) {
+        clearTimeout(clearRef.current)
+        clearRef.current = null
+      }
+      const base = Date.now()
+      const next: RainParticle[] = []
+      for (let i = 0; i < count; i++) {
+        next.push({
+          id: base + i,
+          leftPct: Math.random() * 100,
+          durationSec: 2.2 + Math.random() * 2.8,
+          delaySec: Math.random() * 1.4,
+          driftPx: (Math.random() - 0.5) * 120,
+          symbol: symbols[Math.floor(Math.random() * symbols.length)]!,
+          fontSizePx: 18 + Math.floor(Math.random() * 22)
+        })
+      }
+      setParticles(next)
+      const maxMs = Math.ceil(
+        Math.max(...next.map((p) => (p.durationSec + p.delaySec) * 1000)) + 400
+      )
+      clearRef.current = setTimeout(() => {
+        setParticles([])
+        clearRef.current = null
+      }, maxMs)
+    },
+    []
+  )
 
   const makeItRain = useCallback(() => {
-    if (moneyRainClearRef.current) {
-      clearTimeout(moneyRainClearRef.current)
-      moneyRainClearRef.current = null
-    }
-    const base = Date.now()
-    const count = 72
-    const next: MoneyRainParticle[] = []
-    for (let i = 0; i < count; i++) {
-      next.push({
-        id: base + i,
-        leftPct: Math.random() * 100,
-        durationSec: 2.2 + Math.random() * 2.8,
-        delaySec: Math.random() * 1.4,
-        driftPx: (Math.random() - 0.5) * 120,
-        symbol: MONEY_RAIN_SYMBOLS[Math.floor(Math.random() * MONEY_RAIN_SYMBOLS.length)],
-        fontSizePx: 18 + Math.floor(Math.random() * 22)
-      })
-    }
-    setMoneyRainParticles(next)
-    const maxMs = Math.ceil(
-      Math.max(...next.map((p) => (p.durationSec + p.delaySec) * 1000)) + 400
-    )
-    moneyRainClearRef.current = setTimeout(() => {
-      setMoneyRainParticles([])
-      moneyRainClearRef.current = null
-    }, maxMs)
-  }, [])
+    spawnRain(MONEY_RAIN_SYMBOLS, 72, setMoneyRainParticles, moneyRainClearRef)
+  }, [spawnRain])
+
+  const makeDishesRain = useCallback(() => {
+    spawnRain(DISH_RAIN_SYMBOLS, 80, setDishRainParticles, dishRainClearRef)
+  }, [spawnRain])
 
   useEffect(() => {
     return () => {
       if (moneyRainClearRef.current) clearTimeout(moneyRainClearRef.current)
+      if (dishRainClearRef.current) clearTimeout(dishRainClearRef.current)
     }
   }, [])
 
@@ -179,15 +208,30 @@ export default function DashboardPage() {
 
   return (
     <>
-      {moneyRainParticles.length > 0 && (
+      {(moneyRainParticles.length > 0 || dishRainParticles.length > 0) && (
         <div
           className="fixed inset-0 z-[300] pointer-events-none overflow-hidden"
           aria-hidden
         >
           {moneyRainParticles.map((p) => (
             <span
-              key={p.id}
+              key={`m-${p.id}`}
               className="money-rain-particle"
+              style={{
+                left: `${p.leftPct}%`,
+                animationDuration: `${p.durationSec}s`,
+                animationDelay: `${p.delaySec}s`,
+                fontSize: p.fontSizePx,
+                ['--money-drift' as string]: `${p.driftPx}px`
+              }}
+            >
+              {p.symbol}
+            </span>
+          ))}
+          {dishRainParticles.map((p) => (
+            <span
+              key={`d-${p.id}`}
+              className="money-rain-particle dish-rain-particle"
               style={{
                 left: `${p.leftPct}%`,
                 animationDuration: `${p.durationSec}s`,
@@ -209,6 +253,35 @@ export default function DashboardPage() {
       </div>
 
       <div className="container mx-auto px-4 py-6 md:py-8 glass-content max-w-7xl">
+        <div
+          className="dashboard-pay-banner relative z-0 mb-6 flex flex-col gap-3 rounded-xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+          role="alert"
+        >
+          <div className="relative z-10 flex min-w-0 items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/25 backdrop-blur-sm ring-1 ring-white/15" aria-hidden>
+              <svg
+                className="h-7 w-7 text-white"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden
+              >
+                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
+              </svg>
+            </span>
+            <p className="text-sm font-semibold text-white drop-shadow-sm sm:text-base">
+              Kial, Fewl, and Mic. Pay Fammy
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={makeDishesRain}
+            className="relative z-10 shrink-0 rounded-lg border border-red-400/50 bg-gradient-to-b from-[#e11d48] to-[#9f1239] px-4 py-2 text-sm font-bold text-white shadow-[0_4px_18px_rgba(220,38,38,0.45)] transition-all hover:brightness-110 hover:shadow-[0_6px_24px_rgba(220,38,38,0.55)] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-[#1a0a0c]"
+          >
+            Do dishes
+          </button>
+        </div>
+
         <header className="mb-6">
           <h1 className="text-3xl font-bold text-white tracking-tight">Dashboard</h1>
           <p className="text-sm text-[#a0a0b8] mt-1 max-w-2xl">

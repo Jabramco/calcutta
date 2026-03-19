@@ -12,7 +12,7 @@ interface User {
 }
 
 export default function AdminPage() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, refreshUser } = useAuth()
   const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,6 +78,9 @@ export default function AdminPage() {
 
       if (response.ok) {
         await fetchUsers()
+        if (user && editingUser.id === user.id) {
+          await refreshUser()
+        }
         handleCancelEdit()
       } else {
         const data = await response.json()

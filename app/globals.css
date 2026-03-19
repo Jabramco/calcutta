@@ -125,6 +125,63 @@ input:focus, textarea:focus, select:focus {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Dashboard — payment reminder banner (gradient glass + pulse) */
+.dashboard-pay-banner {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    105deg,
+    rgba(58, 8, 16, 0.78) 0%,
+    rgba(130, 18, 32, 0.52) 42%,
+    rgba(220, 72, 88, 0.48) 100%
+  );
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 140, 150, 0.4);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  animation: dashboard-pay-banner-pulse 2.6s ease-in-out infinite;
+}
+
+.dashboard-pay-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    160deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 48%,
+    rgba(255, 200, 200, 0.08) 100%
+  );
+  pointer-events: none;
+}
+
+@keyframes dashboard-pay-banner-pulse {
+  0%,
+  100% {
+    opacity: 0.9;
+    box-shadow:
+      0 6px 28px rgba(0, 0, 0, 0.32),
+      0 0 0 0 rgba(255, 90, 100, 0),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+  50% {
+    opacity: 1;
+    box-shadow:
+      0 12px 40px rgba(140, 20, 35, 0.5),
+      0 0 32px rgba(255, 120, 130, 0.38),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-pay-banner {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 /* Animated background orbs */
 .glass-bg {
   position: fixed;
@@ -417,5 +474,10 @@ input:focus, textarea:focus, select:focus {
   will-change: transform;
   user-select: none;
   filter: drop-shadow(0 0 6px rgba(0, 206, 184, 0.45));
+}
+
+/* Plate / dishes confetti — same fall animation, warm red glow */
+.money-rain-particle.dish-rain-particle {
+  filter: drop-shadow(0 0 8px rgba(255, 140, 120, 0.65)) drop-shadow(0 0 14px rgba(220, 60, 50, 0.35));
 }
 

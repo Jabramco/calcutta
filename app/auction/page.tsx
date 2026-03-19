@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { formatCurrency } from '@/lib/calculations'
 import { AUCTION_PAGE_READONLY as AUCTION_ENV_READONLY } from '@/lib/auctionReadOnly'
 
@@ -126,14 +126,9 @@ export default function AuctionPage() {
     })
   }, [postSaleIntroTick, auctionUiReadOnly])
 
-  // Fetch current user
-  useEffect(() => {
-    fetchCurrentUser()
-  }, [])
-
-  const fetchCurrentUser = async () => {
+  const fetchCurrentUser = useCallback(async () => {
     try {
-      const response = await fetch('/api/auth/me')
+      const response = await fetch('/api/auth/me', { cache: 'no-store' })
       if (response.ok) {
         const data = await response.json()
         setCurrentUser(data.user)
@@ -141,7 +136,19 @@ export default function AuctionPage() {
     } catch (error) {
       console.error('Error fetching current user:', error)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    void fetchCurrentUser()
+  }, [fetchCurrentUser])
+
+  useEffect(() => {
+    const onVis = () => {
+      if (!document.hidden) void fetchCurrentUser()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [fetchCurrentUser])
 
   const showToast = (message: string) => {
     // Clear any existing timeout

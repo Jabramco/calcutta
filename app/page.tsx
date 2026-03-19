@@ -381,7 +381,7 @@ export default function DashboardPage() {
                 </svg>
               </span>
               <p className="text-sm font-semibold text-white drop-shadow-sm sm:text-base">
-                Kial, Fewl, and Mic. Pay Fammy
+                Kial and Fewl. Pay Fammy
               </p>
             </div>
             <button

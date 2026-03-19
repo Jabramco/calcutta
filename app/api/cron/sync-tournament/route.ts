@@ -8,6 +8,10 @@ import { runTournamentImport } from '@/lib/tournamentImport'
  * On Vercel, set env `CRON_SECRET`; cron invocations include this header automatically.
  *
  * Year: `TOURNAMENT_IMPORT_YEAR` (e.g. 2026), else current UTC calendar year.
+ *
+ * Vercel cron schedule is in `vercel.json`. **Hobby** allows at most one cron run per day;
+ * use a daily expression (e.g. `0 8 * * *`). For every-15-min sync, use **Pro** or an
+ * external scheduler (e.g. cron-job.org) calling this route with the Bearer secret.
  */
 function authorizeCron(request: Request): boolean {
   const secret = process.env.CRON_SECRET

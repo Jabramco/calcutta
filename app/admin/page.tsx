@@ -18,6 +18,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [editForm, setEditForm] = useState({ username: '', password: '', role: 'user' })
+  /** Old pool/auction name to merge into current login (leaderboard & teams). */
+  const [syncPoolFrom, setSyncPoolFrom] = useState('')
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== 'admin')) {
@@ -49,11 +51,41 @@ export default function AdminPage() {
   const handleEdit = (user: User) => {
     setEditingUser(user)
     setEditForm({ username: user.username, password: '', role: user.role })
+    setSyncPoolFrom('')
   }
 
   const handleCancelEdit = () => {
     setEditingUser(null)
     setEditForm({ username: '', password: '', role: 'user' })
+    setSyncPoolFrom('')
+  }
+
+  const handleSyncPoolIdentity = async () => {
+    if (!editingUser || !syncPoolFrom.trim()) return
+    try {
+      const response = await fetch('/api/admin/sync-pool-identity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: editingUser.id,
+          fromPoolName: syncPoolFrom.trim()
+        })
+      })
+      const data = await response.json().catch(() => ({}))
+      if (response.ok) {
+        await fetchUsers()
+        if (user && editingUser.id === user.id) {
+          await refreshUser()
+        }
+        setSyncPoolFrom('')
+        alert('Pool & auction names updated to match this login.')
+      } else {
+        alert(data.error || 'Sync failed')
+      }
+    } catch (e) {
+      console.error(e)
+      alert('Sync failed')
+    }
   }
 
   const handleSaveEdit = async () => {
@@ -251,6 +283,30 @@ export default function AdminPage() {
                     You cannot change your own role
                   </p>
                 )}
+              </div>
+
+              <div className="pt-2 border-t border-[#2a2a38]">
+                <p className="text-sm text-[#a0a0b8] mb-2">
+                  Leaderboard / teams still show an old name? Copy pool & auction data from that
+                  name into this user&apos;s current login.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={syncPoolFrom}
+                    onChange={(e) => setSyncPoolFrom(e.target.value)}
+                    placeholder="Old name (e.g. justin)"
+                    className="flex-1 px-4 py-2 bg-[#1c1c28] border border-[#2a2a38] rounded-xl text-white placeholder-[#6a6a82] focus:outline-none focus:ring-2 focus:ring-[#00ceb8] focus:border-transparent transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSyncPoolIdentity}
+                    disabled={!syncPoolFrom.trim()}
+                    className="px-4 py-2 rounded-xl font-medium bg-[#2a2a48] text-white border border-[#3a3a58] hover:border-[#00ceb8]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    Sync pool → login
+                  </button>
+                </div>
               </div>
             </div>
 

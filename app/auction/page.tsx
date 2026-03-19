@@ -61,62 +61,57 @@ export default function AuctionPage() {
   const [isInitialized, setIsInitialized] = useState(false)
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false })
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const [nextTeamRevealInSeconds, setNextTeamRevealInSeconds] = useState<number | null>(null)
-  const nextTeamRevealInSecondsRef = useRef<number | null>(null)
+  /** 3s intro after currentTeam.id changes (sell / next team). Set synchronously in fetch so chat + UI stay in sync. */
+  const postSaleIntroEndRef = useRef(0)
+  const lastPollTeamIdRef = useRef<number | null>(null)
+  const [postSaleIntroSession, setPostSaleIntroSession] = useState(0)
+  const [postSaleIntroTick, setPostSaleIntroTick] = useState(0)
   const pendingNextTeamChatEventRef = useRef<ChatMessage | null>(null)
-
-  useEffect(() => {
-    nextTeamRevealInSecondsRef.current = nextTeamRevealInSeconds
-  }, [nextTeamRevealInSeconds])
 
   useEffect(() => {
     auctionStateRef.current = auctionState
   }, [auctionState])
 
-  // Count down "Introducing next team in Xs" (3s delay after sold)
-  const nextTeamRevealStartedAt = useRef<number | null>(null)
+  // Tick every 250ms while post-sale intro is active (drives countdown UI + chat seconds)
   useEffect(() => {
-    if (nextTeamRevealInSeconds == null || nextTeamRevealInSeconds <= 0) {
-      nextTeamRevealStartedAt.current = null
-      return
+    const end = postSaleIntroEndRef.current
+    if (end <= Date.now()) return
+    const iv = setInterval(() => setPostSaleIntroTick((t) => t + 1), 250)
+    const done = setTimeout(() => {
+      clearInterval(iv)
+      postSaleIntroEndRef.current = 0
+      setPostSaleIntroTick((t) => t + 1)
+      void fetchAuctionState()
+    }, Math.max(0, end - Date.now()) + 50)
+    return () => {
+      clearInterval(iv)
+      clearTimeout(done)
     }
-    if (nextTeamRevealStartedAt.current === null) nextTeamRevealStartedAt.current = Date.now()
-    const interval = setInterval(() => {
-      setNextTeamRevealInSeconds((prev) => (prev == null || prev <= 1 ? null : prev - 1))
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [nextTeamRevealInSeconds])
+  }, [postSaleIntroSession])
 
-  // Safety: clear stuck "Introducing next team" after 4s so bidding is never permanently disabled
+  // Safety: never block bidding more than 5s if intro ref stuck
   useEffect(() => {
-    if (nextTeamRevealInSeconds == null) return
+    if (postSaleIntroEndRef.current <= Date.now()) return
     const t = setTimeout(() => {
-      setNextTeamRevealInSeconds(null)
-    }, 4000)
+      if (postSaleIntroEndRef.current > Date.now()) {
+        postSaleIntroEndRef.current = 0
+        setPostSaleIntroTick((x) => x + 1)
+        void fetchAuctionState()
+      }
+    }, 5000)
     return () => clearTimeout(t)
-  }, [nextTeamRevealInSeconds])
+  }, [postSaleIntroSession])
 
-  // When 3s delay ends, show the held-back "Now auctioning" message in chat
+  // Update "Introducing next team in Xs" in chat every tick during intro
   useEffect(() => {
-    if (nextTeamRevealInSeconds !== null) return
-    const pending = pendingNextTeamChatEventRef.current
-    if (!pending) return
-    pendingNextTeamChatEventRef.current = null
-    setChatMessages((prev) => [...prev, pending])
-  }, [nextTeamRevealInSeconds])
-
-  // Update chat countdown message every second ("Introducing next team in 3s" -> "2s" -> "1s")
-  useEffect(() => {
-    if (nextTeamRevealInSeconds == null || nextTeamRevealInSeconds <= 0) return
+    if (postSaleIntroEndRef.current <= Date.now()) return
+    const sec = Math.max(1, Math.ceil((postSaleIntroEndRef.current - Date.now()) / 1000))
     setChatMessages((prev) => {
       const last = prev[prev.length - 1]
       if (!last || last.type !== 'system' || !last.message?.startsWith('Introducing next team in')) return prev
-      return [
-        ...prev.slice(0, -1),
-        { ...last, message: `Introducing next team in ${nextTeamRevealInSeconds} second${nextTeamRevealInSeconds !== 1 ? 's' : ''}...`, timestamp: Date.now() }
-      ]
+      return [...prev.slice(0, -1), { ...last, message: `Introducing next team in ${sec} second${sec !== 1 ? 's' : ''}...`, timestamp: Date.now() }]
     })
-  }, [nextTeamRevealInSeconds])
+  }, [postSaleIntroTick])
 
   // Fetch current user
   useEffect(() => {
@@ -322,6 +317,14 @@ export default function AuctionPage() {
       if (typeof data.bidderSpend === 'number') setBidderSpend(data.bidderSpend)
       if (typeof data.teamsRemaining === 'number') setTeamsRemaining(data.teamsRemaining)
 
+      const prevPollId = lastPollTeamIdRef.current
+      const nextPollId = data.currentTeam?.id ?? null
+      if (data.isActive && nextPollId != null && prevPollId != null && nextPollId !== prevPollId) {
+        postSaleIntroEndRef.current = Date.now() + 3000
+        setPostSaleIntroSession((s) => s + 1)
+      }
+      lastPollTeamIdRef.current = nextPollId
+
       const usedServerEvents = data.events && Array.isArray(data.events)
       if (usedServerEvents) {
         const base = data.events as ChatMessage[]
@@ -366,15 +369,21 @@ export default function AuctionPage() {
               ? [...messages, { type: 'warning' as const, message: 'Going once!', timestamp: now - COUNTDOWN_INTERVAL }, { type: 'warning' as const, message: 'Going TWICE!', timestamp: now }]
               : messages
 
-        // Hold back "Now auctioning" in chat for 3s when in delay so SOLD and next team aren't same timestamp
-        const delaySec = nextTeamRevealInSecondsRef.current
+        // Hold back "Now auctioning" during 3s intro (same window as left-panel countdown)
+        const introEnd = postSaleIntroEndRef.current
+        const inPostSaleIntro = introEnd > Date.now()
+        const introSecChat = inPostSaleIntro ? Math.max(1, Math.ceil((introEnd - Date.now()) / 1000)) : 0
         const lastMsg = messages[messages.length - 1]
         const secondLastMsg = messages[messages.length - 2] as ChatMessage | undefined
-        if (delaySec != null && delaySec > 0 && lastMsg?.type === 'bot' && lastMsg?.message?.startsWith('Now auctioning') && secondLastMsg?.type === 'sold') {
+        if (inPostSaleIntro && introSecChat > 0 && lastMsg?.type === 'bot' && lastMsg?.message?.startsWith('Now auctioning') && secondLastMsg?.type === 'sold') {
           pendingNextTeamChatEventRef.current = lastMsg
           messages = [
             ...messages.slice(0, -1),
-            { type: 'system' as const, message: `Introducing next team in ${delaySec} second${delaySec !== 1 ? 's' : ''}...`, timestamp: now }
+            {
+              type: 'system' as const,
+              message: `Introducing next team in ${introSecChat} second${introSecChat !== 1 ? 's' : ''}...`,
+              timestamp: now
+            }
           ]
         }
         setChatMessages(messages)
@@ -540,7 +549,7 @@ export default function AuctionPage() {
     if (!currentUser) return
     const amount = overrideAmount ?? parseFloat(bidAmount)
     if (overrideAmount == null && !bidAmount) return
-    if (nextTeamRevealInSeconds != null && nextTeamRevealInSeconds > 0) return // No bids during "Introducing next team" countdown
+    if (showPostSaleIntro) return // No bids during "Introducing next team" countdown
 
     if (isNaN(amount) || amount <= (auctionState?.currentBid || 0)) {
       showToast('Must be higher than current highest bid')
@@ -638,7 +647,6 @@ export default function AuctionPage() {
         lastBidCount.current = 0
         
         if (data.remainingTeams > 0) {
-          setNextTeamRevealInSeconds(3)
           addChatMessage({
             type: 'system',
             message: `${data.remainingTeams} teams remaining. Next team coming up...`,
@@ -749,7 +757,9 @@ export default function AuctionPage() {
         lastAnnouncedWarning.current = 'none'
         hasAutoSold.current = false
         currentTeamIdRef.current = null
-        
+        lastPollTeamIdRef.current = null
+        postSaleIntroEndRef.current = 0
+
         addChatMessage({
           type: 'system',
           message: 'Auction has been restarted! All data cleared.',
@@ -770,6 +780,11 @@ export default function AuctionPage() {
       setLoading(false)
     }
   }
+
+  const postSaleIntroEnd = postSaleIntroEndRef.current
+  const postSaleIntroSecondsLeft = postSaleIntroEnd > Date.now() ? Math.max(0, Math.ceil((postSaleIntroEnd - Date.now()) / 1000)) : 0
+  const showPostSaleIntro = !!auctionState?.isActive && !!auctionState?.currentTeam && postSaleIntroSecondsLeft > 0
+  void postSaleIntroTick
 
   return (
     <>
@@ -836,14 +851,14 @@ export default function AuctionPage() {
 
           <h2 className="text-xl font-semibold mb-4 text-white">Current Team</h2>
           
-          {auctionState?.isActive && auctionState.currentTeam && nextTeamRevealInSeconds !== null && nextTeamRevealInSeconds > 0 ? (
-            <div className="mb-6 p-6 glass-card rounded-2xl border border-[#2a2a38] flex items-center justify-center min-h-[120px]">
-              <div className="text-center text-[#a0a0b8]">
-                <div className="text-lg font-medium text-white mb-1">Introducing next team in</div>
-                <div className="text-3xl font-bold text-[#00ceb8]">{nextTeamRevealInSeconds}s</div>
+          {showPostSaleIntro ? (
+              <div className="mb-6 p-6 glass-card rounded-2xl border border-[#2a2a38] flex items-center justify-center min-h-[120px]">
+                <div className="text-center text-[#a0a0b8]">
+                  <div className="text-lg font-medium text-white mb-1">Introducing next team in</div>
+                  <div className="text-3xl font-bold text-[#00ceb8]">{postSaleIntroSecondsLeft}s</div>
+                </div>
               </div>
-            </div>
-          ) : auctionState?.isActive && auctionState.currentTeam ? (
+            ) : auctionState?.isActive && auctionState.currentTeam ? (
             <div>
               <div className="mb-6 p-6 glass-card rounded-2xl border-2 border-[#00ceb8] shadow-lg shadow-[#00ceb8]/40 bg-gradient-to-br from-[#00ceb8]/10 to-transparent">
                 <div className="text-3xl font-bold text-white mb-2">
@@ -1024,14 +1039,14 @@ export default function AuctionPage() {
                     onChange={(e) => setBidAmount(e.target.value)}
                     placeholder="Spend money to make money, bradie"
                     className="flex-1 px-4 py-2 rounded-xl text-white placeholder-[#a0a0b8] focus:outline-none focus:ring-2 focus:ring-[#00ceb8] focus:border-transparent transition-all bg-[#0d0d14] border border-[#2a2a38]"
-                    disabled={!auctionState?.currentTeam || (nextTeamRevealInSeconds != null && nextTeamRevealInSeconds > 0)}
+                    disabled={!auctionState?.currentTeam || showPostSaleIntro}
                     step="1"
                     min="5"
-                    onKeyPress={(e) => e.key === 'Enter' && !(nextTeamRevealInSeconds != null && nextTeamRevealInSeconds > 0) && placeBid()}
+                    onKeyPress={(e) => e.key === 'Enter' && !showPostSaleIntro && placeBid()}
                   />
                   <button
                     onClick={() => placeBid((auctionState?.currentBid ?? 0) + 5)}
-                    disabled={loading || !auctionState?.currentTeam || auctionState?.currentBidder === currentUser?.username || (nextTeamRevealInSeconds != null && nextTeamRevealInSeconds > 0)}
+                    disabled={loading || !auctionState?.currentTeam || auctionState?.currentBidder === currentUser?.username || showPostSaleIntro}
                     title={`Bid $${((auctionState?.currentBid ?? 0) + 5).toLocaleString()}`}
                     className="btn-gradient-primary px-4 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold whitespace-nowrap"
                   >
@@ -1039,7 +1054,7 @@ export default function AuctionPage() {
                   </button>
                   <button
                     onClick={() => placeBid()}
-                    disabled={loading || !auctionState?.currentTeam || !bidAmount || (nextTeamRevealInSeconds != null && nextTeamRevealInSeconds > 0)}
+                    disabled={loading || !auctionState?.currentTeam || !bidAmount || showPostSaleIntro}
                     className="btn-gradient-primary px-6 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold whitespace-nowrap w-full sm:w-auto"
                   >
                     Place Bid

@@ -217,8 +217,18 @@ export default function DashboardPage() {
           fetch('/api/leaderboard', { cache: 'no-store' }),
           fetch('/api/stats', { cache: 'no-store' })
         ])
-        setLeaderboard(await leaderboardRes.json())
-        setStats(await statsRes.json())
+        const leaderboardJson = await leaderboardRes.json()
+        setLeaderboard(Array.isArray(leaderboardJson) ? leaderboardJson : [])
+        const statsJson = await statsRes.json()
+        setStats(
+          statsJson &&
+            typeof statsJson === 'object' &&
+            !Array.isArray(statsJson) &&
+            'totalPot' in statsJson &&
+            'payoutPerWin' in statsJson
+            ? statsJson
+            : null
+        )
       } catch (error) {
         console.error('Error fetching data:', error)
       } finally {
@@ -260,7 +270,8 @@ export default function DashboardPage() {
   }, [])
 
   const sortedLeaderboard = useMemo(() => {
-    return [...leaderboard].sort((a, b) =>
+    const rows = Array.isArray(leaderboard) ? leaderboard : []
+    return [...rows].sort((a, b) =>
       sortBy === 'roi' ? b.roi - a.roi : b.totalPayout - a.totalPayout
     )
   }, [leaderboard, sortBy])

@@ -58,19 +58,30 @@ function AdvanceSlot({
   }
 
   const ownerName = (t: TeamWithOwner | null | undefined) => t?.owner?.name ?? '—'
+  /** Match compact BracketMatchupCard (Round of 64) when a team is in the slot */
+  const filledGlass =
+    'rounded-xl border border-[#2a2a38] bg-[#15151e]/90 backdrop-blur-sm shadow-[0_8px_32px_rgba(0,0,0,0.2)] hover:border-[#00ceb8]/25 transition-colors'
+  const emptyPlaceholder =
+    'rounded-lg border border-dashed border-[#2a2a38] bg-[#0c0c12]/90'
   return (
     <div
-      className={`rounded-lg border border-dashed border-[#2a2a38] bg-[#0c0c12]/90 px-1.5 py-2 text-center flex flex-col items-center justify-center ${
-        tall ? 'min-h-[96px]' : 'min-h-[52px]'
-      }`}
+      className={`text-center flex flex-col items-center justify-center ${
+        hasTeams ? filledGlass : emptyPlaceholder
+      } ${hasTeams ? 'px-2 py-1.5' : 'px-1.5 py-2'} ${tall ? 'min-h-[96px]' : 'min-h-[52px]'}`}
     >
-      <span className="text-[8px] text-[#5a5a6e] uppercase tracking-wide leading-tight">{label}</span>
+      <span
+        className={`text-[8px] uppercase tracking-wide leading-tight ${
+          hasTeams ? 'text-[#6a6a82]' : 'text-[#5a5a6e]'
+        }`}
+      >
+        {label}
+      </span>
       {hasTeams ? (
         <div className="mt-0.5 leading-tight w-full">
           <div className="text-[10px] text-white font-medium truncate max-w-[64px] sm:max-w-[72px] mx-auto" title={primary?.name ?? 'TBD'}>
             {shortName(primary)}
           </div>
-          <div className="text-[9px] text-[#a0a0b8] truncate max-w-[64px] sm:max-w-[72px] mx-auto" title={ownerName(primary)}>
+          <div className="text-[9px] text-[#c8c8d8] truncate max-w-[64px] sm:max-w-[72px] mx-auto mt-0.5" title={ownerName(primary)}>
             {ownerName(primary)}
           </div>
           <div className="text-[10px] text-[#6a6a82] truncate max-w-[64px] sm:max-w-[72px] mx-auto mt-0.5" title={secondary?.name ?? 'TBD'}>

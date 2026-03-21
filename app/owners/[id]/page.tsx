@@ -3,12 +3,15 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import type { Team } from '@prisma/client'
 import { OwnerWithTeams } from '@/lib/types'
 import { formatCurrency, formatROI, calculateTeamPayout, calculateTotalPot } from '@/lib/calculations'
+import { isTeamEliminated } from '@/lib/tournamentElimination'
 
 export default function OwnerPage() {
   const params = useParams()
   const [owner, setOwner] = useState<OwnerWithTeams | null>(null)
+  const [poolTeams, setPoolTeams] = useState<Team[]>([])
   const [totalPot, setTotalPot] = useState(0)
   const [loading, setLoading] = useState(true)
 
@@ -24,7 +27,9 @@ export default function OwnerPage() {
         const teamsData = await teamsRes.json()
 
         setOwner(ownerData)
-        setTotalPot(calculateTotalPot(teamsData))
+        const pool = Array.isArray(teamsData) ? teamsData : []
+        setPoolTeams(pool)
+        setTotalPot(calculateTotalPot(pool))
       } catch (error) {
         console.error('Error fetching data:', error)
       } finally {
@@ -128,9 +133,18 @@ export default function OwnerPage() {
                   if (team.championship) roundsWon.push('CHAMP')
 
                   const teamPayout = calculateTeamPayout(team, totalPot)
+                  const eliminated = poolTeams.length > 0 && isTeamEliminated(team, poolTeams)
 
                   return (
-                    <tr key={team.id} className="hover:bg-[#1c1c28]/30 transition-colors">
+                    <tr
+                      key={team.id}
+                      className={`transition-colors ${
+                        eliminated
+                          ? '[&_td]:line-through [&_td]:decoration-[#9a9aac] opacity-[0.72] hover:bg-transparent'
+                          : 'hover:bg-[#1c1c28]/30'
+                      }`}
+                      title={eliminated ? 'Eliminated from tournament' : undefined}
+                    >
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
                         {team.region}
                       </td>

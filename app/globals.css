@@ -468,6 +468,111 @@ input:focus, textarea:focus, select:focus {
     box-shadow: 0 0 0 1px rgba(145, 0, 0, 0.22), 0 10px 24px rgba(85, 0, 0, 0.16),
       inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
+
+  .graveyard-uk-flag {
+    animation: none !important;
+  }
+
+  .graveyard-uk-flag-shimmer {
+    animation: none !important;
+  }
+}
+
+/* Ryshawn — Union Jack on tombstone: wind + light shimmer */
+@keyframes graveyard-uk-flag-wind {
+  0%,
+  100% {
+    transform: rotate(-5deg) skewX(-4deg) scaleY(0.96);
+    filter: brightness(1) saturate(1.05) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+  }
+  22% {
+    transform: rotate(5deg) skewX(5deg) scaleY(1.03);
+    filter: brightness(1.12) saturate(1.12) drop-shadow(0 1px 4px rgba(255, 255, 255, 0.12));
+  }
+  48% {
+    transform: rotate(-3deg) skewX(-3deg) scaleY(0.98);
+    filter: brightness(1.18) saturate(1.15) drop-shadow(0 0 5px rgba(255, 255, 255, 0.14));
+  }
+  72% {
+    transform: rotate(6deg) skewX(4deg) scaleY(1.02);
+    filter: brightness(1.1) saturate(1.1) drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
+  }
+}
+
+@keyframes graveyard-uk-flag-shimmer {
+  0%,
+  100% {
+    transform: translateX(-140%) skewX(-14deg);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.55;
+  }
+  48% {
+    transform: translateX(160%) skewX(-14deg);
+    opacity: 0.65;
+  }
+  82% {
+    opacity: 0.4;
+  }
+}
+
+/* Outer: wind motion. Inner: clips shimmer to the flag glyph. */
+.graveyard-uk-flag {
+  position: relative;
+  display: inline-block;
+  transform-origin: 50% 88%;
+  font-size: 0.78rem;
+  line-height: 1;
+  animation: graveyard-uk-flag-wind 3.1s ease-in-out infinite;
+}
+
+@media (min-width: 640px) {
+  .graveyard-uk-flag {
+    font-size: 0.92rem;
+  }
+}
+
+.graveyard-uk-flag-inner {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  border-radius: 2px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+/* Shimmer is masked to the flag shape so highlights don’t spill past the glyph */
+.graveyard-uk-flag-shimmer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    102deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 32%,
+    rgba(255, 255, 255, 0.48) 50%,
+    rgba(255, 255, 255, 0.08) 68%,
+    transparent 100%
+  );
+  mix-blend-mode: soft-light;
+  animation: graveyard-uk-flag-shimmer 2.6s ease-in-out infinite;
+  -webkit-mask-image: radial-gradient(
+    ellipse 90% 86% at 50% 50%,
+    #000 0%,
+    #000 70%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 90% 86% at 50% 50%,
+    #000 0%,
+    #000 70%,
+    transparent 100%
+  );
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
 
 @keyframes badgers-shimmer-sweep {

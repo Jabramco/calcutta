@@ -74,6 +74,34 @@ function leaderboardPodiumRankClass(index: number): string {
   return 'text-[#6a6a82]'
 }
 
+/** UK flag on grave for Ryshawn (British). Matches when first name is Ryshawn. */
+function isRyshawnOwnerName(name: string): boolean {
+  const n = name.trim().toLowerCase()
+  const first = n.split(/\s+/)[0]?.replace(/[.,]+$/g, '') ?? ''
+  return first === 'ryshawn'
+}
+
+/** Tombstone with Union Jack overlaid on the stone (Ryshawn only). */
+function RyshawnGraveOverlay({ className = 'opacity-90' }: { className?: string }) {
+  return (
+    <span
+      className={`relative inline-block shrink-0 ${className}`}
+      aria-hidden
+      title="British"
+    >
+      <span className="text-lg leading-none sm:text-xl">🪦</span>
+      <span className="pointer-events-none absolute left-1/2 top-[0.02em] z-10 -translate-x-1/2 leading-none">
+        <span className="graveyard-uk-flag">
+          <span className="graveyard-uk-flag-inner">
+            🇬🇧
+            <span className="graveyard-uk-flag-shimmer" aria-hidden />
+          </span>
+        </span>
+      </span>
+    </span>
+  )
+}
+
 function formatGameTime(iso: string): string {
   try {
     return new Date(iso).toLocaleString(undefined, {
@@ -459,9 +487,13 @@ export default function DashboardPage() {
                     onClick={() => router.push(`/owners/${o.id}`)}
                     className="graveyard-player-card group inline-flex items-center gap-2 rounded-xl border border-[#2f2a3d] bg-[#1a1624]/90 px-3 py-2 text-left text-sm text-[#d4c4f7] hover:border-[#6b5b8c]/60 hover:bg-[#221c2e]/95 transition-colors focus:outline-none focus:ring-2 focus:ring-[#a78bfa]/40"
                   >
-                    <span className="text-lg leading-none opacity-90" aria-hidden>
-                      🧟
-                    </span>
+                    {isRyshawnOwnerName(o.name) ? (
+                      <RyshawnGraveOverlay />
+                    ) : (
+                      <span className="text-lg leading-none opacity-90" aria-hidden>
+                        🧟
+                      </span>
+                    )}
                     <span className="font-medium text-white group-hover:underline decoration-[#a78bfa]/50">
                       {o.name}
                     </span>
@@ -543,20 +575,23 @@ export default function DashboardPage() {
                           }`}
                           title={
                             isGraveyard
-                              ? `${entry.owner.name} · Graveyard`
+                              ? `${entry.owner.name} · Graveyard${isRyshawnOwnerName(entry.owner.name) ? ' · UK' : ''}`
                               : entry.owner.name
                           }
                         >
                           <span className="inline-flex items-center gap-1.5 min-w-0">
                             <span className="truncate">{entry.owner.name}</span>
-                            {isGraveyard && (
-                              <span
-                                className="shrink-0 text-[15px] leading-none opacity-80"
-                                aria-hidden
-                              >
-                                🪦
-                              </span>
-                            )}
+                            {isGraveyard &&
+                              (isRyshawnOwnerName(entry.owner.name) ? (
+                                <RyshawnGraveOverlay className="opacity-80" />
+                              ) : (
+                                <span
+                                  className="inline-flex shrink-0 items-center text-[15px] leading-none opacity-80"
+                                  aria-hidden
+                                >
+                                  🪦
+                                </span>
+                              ))}
                           </span>
                         </td>
                         <td

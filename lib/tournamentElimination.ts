@@ -109,3 +109,9 @@ export function isTeamEliminated(team: Team, allTeams: Team[]): boolean {
 
   return false
 }
+
+/** True if this owner has at least one team still in the tournament (not eliminated). */
+export function ownerHasAliveTeamInPool(ownerTeams: Team[], poolTeams: Team[]): boolean {
+  if (!ownerTeams.length) return false
+  return ownerTeams.some((t) => !isTeamEliminated(t, poolTeams))
+}

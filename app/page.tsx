@@ -12,7 +12,8 @@ import {
 } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatCurrency, formatROI } from '@/lib/calculations'
-import { LeaderboardEntry, GlobalStats } from '@/lib/types'
+import { ownerHasAliveTeamInPool } from '@/lib/tournamentElimination'
+import { LeaderboardEntry, GlobalStats, type TeamWithOwner } from '@/lib/types'
 
 type UpcomingSide = {
   name: string
@@ -134,6 +135,7 @@ export default function DashboardPage() {
   const [games, setGames] = useState<UpcomingGame[]>([])
   const [gamesMeta, setGamesMeta] = useState<{ error?: string } | null>(null)
   const [gamesLoading, setGamesLoading] = useState(true)
+  const [poolTeams, setPoolTeams] = useState<TeamWithOwner[]>([])
   const [moneyRainParticles, setMoneyRainParticles] = useState<RainParticle[]>([])
   const moneyRainClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showBadgersModal, setShowBadgersModal] = useState(false)
@@ -204,9 +206,10 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [leaderboardRes, statsRes] = await Promise.all([
+        const [leaderboardRes, statsRes, teamsRes] = await Promise.all([
           fetch('/api/leaderboard', { cache: 'no-store' }),
-          fetch('/api/stats', { cache: 'no-store' })
+          fetch('/api/stats', { cache: 'no-store' }),
+          fetch('/api/teams', { cache: 'no-store' })
         ])
         const leaderboardJson = await leaderboardRes.json()
         setLeaderboard(Array.isArray(leaderboardJson) ? leaderboardJson : [])
@@ -220,8 +223,11 @@ export default function DashboardPage() {
             ? statsJson
             : null
         )
+        const teamsJson = await teamsRes.json()
+        setPoolTeams(Array.isArray(teamsJson) ? teamsJson : [])
       } catch (error) {
         console.error('Error fetching data:', error)
+        setPoolTeams([])
       } finally {
         setLoading(false)
       }
@@ -288,6 +294,40 @@ export default function DashboardPage() {
       return away.includes('wisconsin') || home.includes('wisconsin')
     })
   }, [gamesLiveSorted])
+
+  /** Owners with no team still alive (or no teams); only meaningful when nothing is live */
+  const graveyardOwners = useMemo(() => {
+    if (poolTeams.length === 0) return []
+    const pool = poolTeams
+    const ownerIds = new Set<number>()
+    const nameById = new Map<number, string>()
+    for (const e of leaderboard) {
+      ownerIds.add(e.owner.id)
+      nameById.set(e.owner.id, e.owner.name)
+    }
+    for (const t of poolTeams) {
+      if (t.ownerId != null) {
+        ownerIds.add(t.ownerId)
+        if (t.owner && !nameById.has(t.ownerId)) nameById.set(t.ownerId, t.owner.name)
+      }
+    }
+    const out: { id: number; name: string }[] = []
+    for (const id of ownerIds) {
+      const myTeams = poolTeams.filter((t) => t.ownerId === id)
+      if (!ownerHasAliveTeamInPool(myTeams, pool)) {
+        out.push({ id, name: nameById.get(id) ?? 'Unknown' })
+      }
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name))
+  }, [poolTeams, leaderboard])
+
+  const graveyardOwnerIds = useMemo(
+    () => new Set(graveyardOwners.map((o) => o.id)),
+    [graveyardOwners]
+  )
+
+  const showGraveyard =
+    !gamesLoading && gamesLiveSorted.length === 0 && graveyardOwners.length > 0
 
   if (loading) {
     return (
@@ -374,28 +414,63 @@ export default function DashboardPage() {
         )}
 
         {/* Live games */}
-        <section className="mb-8">
-          <h2 className="text-lg font-bold text-white mb-5">Live games</h2>
+        {(gamesLoading || (gamesMeta?.error && games.length === 0) || games.length === 0 || gamesLiveSorted.length > 0) && (
+          <section className="mb-8">
+            <h2 className="text-lg font-bold text-white mb-5">Live games</h2>
 
-          {gamesLoading ? (
-            <p className="text-sm text-[#a0a0b8]">Loading schedule…</p>
-          ) : gamesMeta?.error && games.length === 0 ? (
-            <p className="text-sm text-[#fb6340]">{gamesMeta.error}</p>
-          ) : games.length === 0 ? (
-            <p className="text-sm text-[#a0a0b8]">
-              No upcoming or live tournament games in this window (mid-March through early April). Check back
-              during the tournament.
-            </p>
-          ) : gamesLiveSorted.length === 0 ? (
-            <p className="text-sm text-[#a0a0b8]">No games live right now.</p>
-          ) : (
-            <ul className="grid grid-cols-1 lg:grid-cols-2 gap-4 list-none p-0 m-0">
-              {gamesLiveSorted.map((g) => (
-                <MatchupCard key={g.id} g={g} liveHighlight />
-              ))}
-            </ul>
-          )}
-        </section>
+            {gamesLoading ? (
+              <p className="text-sm text-[#a0a0b8]">Loading schedule…</p>
+            ) : gamesMeta?.error && games.length === 0 ? (
+              <p className="text-sm text-[#fb6340]">{gamesMeta.error}</p>
+            ) : games.length === 0 ? (
+              <p className="text-sm text-[#a0a0b8]">
+                No upcoming or live tournament games in this window (mid-March through early April). Check back
+                during the tournament.
+              </p>
+            ) : (
+              <ul className="grid grid-cols-1 lg:grid-cols-2 gap-4 list-none p-0 m-0">
+                {gamesLiveSorted.map((g) => (
+                  <MatchupCard key={g.id} g={g} liveHighlight />
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+
+        {showGraveyard && (
+          <section
+            className="graveyard-card relative z-0 mb-8 overflow-hidden rounded-2xl border border-[#3d3548]/80 bg-gradient-to-br from-[#16121f]/95 via-[#12121a] to-[#0f1418] p-4 md:p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-shadow"
+            aria-labelledby="graveyard-heading"
+          >
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-2xl" aria-hidden>
+                  🪦
+                </span>
+                <h2 id="graveyard-heading" className="text-lg font-bold text-[#c4b5fd] tracking-tight">
+                  Graveyard
+                </h2>
+              </div>
+              <div className="flex flex-wrap gap-2 md:gap-3">
+                {graveyardOwners.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => router.push(`/owners/${o.id}`)}
+                    className="graveyard-player-card group inline-flex items-center gap-2 rounded-xl border border-[#2f2a3d] bg-[#1a1624]/90 px-3 py-2 text-left text-sm text-[#d4c4f7] hover:border-[#6b5b8c]/60 hover:bg-[#221c2e]/95 transition-colors focus:outline-none focus:ring-2 focus:ring-[#a78bfa]/40"
+                  >
+                    <span className="text-lg leading-none opacity-90" aria-hidden>
+                      🧟
+                    </span>
+                    <span className="font-medium text-white group-hover:underline decoration-[#a78bfa]/50">
+                      {o.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Leaderboard */}
         <div className="mb-6">
@@ -427,20 +502,28 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedLeaderboard.map((entry, index) => (
+                    {sortedLeaderboard.map((entry, index) => {
+                      const isGraveyard = graveyardOwnerIds.has(entry.owner.id)
+                      return (
                       <tr
                         key={entry.owner.id}
                         onClick={() => router.push(`/owners/${entry.owner.id}`)}
-                        className={`border-t border-[#2a2a38]/60 cursor-pointer transition-colors ${
-                          index === 0
-                            ? 'leaderboard-podium-first'
-                            : index < 3
-                              ? `hover:bg-[#23232f]/80 ${leaderboardPodiumRowClass(index)}`
-                              : 'hover:bg-[#23232f]/80'
+                        className={`border-t cursor-pointer transition-colors ${
+                          isGraveyard
+                            ? 'border-[#2a2a38]/50 bg-[#14141a]/75 hover:bg-[#1a1a22]/90'
+                            : `border-[#2a2a38]/60 ${
+                                index === 0
+                                  ? 'leaderboard-podium-first'
+                                  : index < 3
+                                    ? `hover:bg-[#23232f]/80 ${leaderboardPodiumRowClass(index)}`
+                                    : 'hover:bg-[#23232f]/80'
+                              }`
                         }`}
                       >
                         <td
-                          className={`pl-3 pr-1 py-2.5 tabular-nums ${leaderboardPodiumRankClass(index)}`}
+                          className={`pl-3 pr-1 py-2.5 tabular-nums ${
+                            isGraveyard ? 'text-[#6a6a78]' : leaderboardPodiumRankClass(index)
+                          }`}
                           title={index === 0 ? '1st' : index === 1 ? '2nd' : index === 2 ? '3rd' : undefined}
                         >
                           <span className="inline-flex items-center gap-1">
@@ -451,32 +534,61 @@ export default function DashboardPage() {
                           </span>
                         </td>
                         <td
-                          className={`pr-2 py-2.5 font-medium truncate max-w-[140px] md:max-w-[200px] ${
-                            index < 3 ? 'text-white' : 'text-[#00ceb8]'
+                          className={`pr-2 py-2.5 font-medium max-w-[140px] md:max-w-[220px] ${
+                            isGraveyard
+                              ? 'text-[#8e8e9e]'
+                              : index < 3
+                                ? 'text-white'
+                                : 'text-[#00ceb8]'
                           }`}
-                          title={entry.owner.name}
+                          title={
+                            isGraveyard
+                              ? `${entry.owner.name} · Graveyard`
+                              : entry.owner.name
+                          }
                         >
-                          {entry.owner.name}
+                          <span className="inline-flex items-center gap-1.5 min-w-0">
+                            <span className="truncate">{entry.owner.name}</span>
+                            {isGraveyard && (
+                              <span
+                                className="shrink-0 text-[15px] leading-none opacity-80"
+                                aria-hidden
+                              >
+                                🪦
+                              </span>
+                            )}
+                          </span>
                         </td>
-                        <td className="pr-2 py-2.5 text-right text-white tabular-nums text-xs">
+                        <td
+                          className={`pr-2 py-2.5 text-right tabular-nums text-xs ${
+                            isGraveyard ? 'text-[#7a7a8a]' : 'text-white'
+                          }`}
+                        >
                           {formatCurrency(entry.totalInvestment)}
                         </td>
-                        <td className="pr-3 py-2.5 text-right text-[#2dce89] font-semibold tabular-nums text-xs">
+                        <td
+                          className={`pr-3 py-2.5 text-right font-semibold tabular-nums text-xs ${
+                            isGraveyard ? 'text-[#5d7a65]' : 'text-[#2dce89]'
+                          }`}
+                        >
                           {formatCurrency(entry.totalPayout)}
                         </td>
                         <td
                           className={`pr-3 py-2.5 text-right font-semibold tabular-nums text-xs ${
-                            entry.roi >= 100
-                              ? 'text-[#2dce89]'
-                              : entry.roi >= 0
-                                ? 'text-[#00ceb8]'
-                                : 'text-[#f5365c]'
+                            isGraveyard
+                              ? 'text-[#6a8a86]'
+                              : entry.roi >= 100
+                                ? 'text-[#2dce89]'
+                                : entry.roi >= 0
+                                  ? 'text-[#00ceb8]'
+                                  : 'text-[#f5365c]'
                           }`}
                         >
                           {formatROI(entry.roi)}
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               )}

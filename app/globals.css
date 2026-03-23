@@ -419,6 +419,57 @@ input:focus, textarea:focus, select:focus {
   filter: drop-shadow(0 0 6px rgba(0, 206, 184, 0.45));
 }
 
+@keyframes graveyard-red-pulse {
+  0% {
+    box-shadow: 0 0 0 1px rgba(145, 0, 0, 0.14), 0 10px 30px rgba(70, 0, 0, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(170, 12, 12, 0.32), 0 14px 40px rgba(115, 0, 0, 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+  100% {
+    box-shadow: 0 0 0 1px rgba(145, 0, 0, 0.14), 0 10px 30px rgba(70, 0, 0, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+}
+
+.graveyard-card:hover,
+.graveyard-card:focus-within {
+  animation: graveyard-red-pulse 2.8s ease-in-out infinite;
+}
+
+.graveyard-player-card:hover,
+.graveyard-player-card:focus-visible {
+  animation: graveyard-red-pulse 2.8s ease-in-out infinite;
+}
+
+.graveyard-card:hover .graveyard-player-card {
+  animation: graveyard-red-pulse 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .graveyard-card:hover,
+  .graveyard-card:focus-within {
+    animation: none;
+    box-shadow: 0 0 0 1px rgba(145, 0, 0, 0.2), 0 12px 32px rgba(85, 0, 0, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .graveyard-player-card:hover,
+  .graveyard-player-card:focus-visible {
+    animation: none;
+    box-shadow: 0 0 0 1px rgba(145, 0, 0, 0.22), 0 10px 24px rgba(85, 0, 0, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .graveyard-card:hover .graveyard-player-card {
+    animation: none;
+    box-shadow: 0 0 0 1px rgba(145, 0, 0, 0.22), 0 10px 24px rgba(85, 0, 0, 0.16),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+}
+
 @keyframes badgers-shimmer-sweep {
   0% {
     transform: translateX(-140%) skewX(-20deg);

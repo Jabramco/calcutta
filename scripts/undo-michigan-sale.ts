@@ -42,12 +42,12 @@ async function main() {
   })
 
   // Clear lastAuctionSale if it was this team so UI doesn't show stale "Last sale"
-  const lastSaleRow = await prisma.settings.findUnique({ where: { key: 'lastAuctionSale' } })
+  const lastSaleRow = await prisma.settings.findUnique({ where: { tournament_key: { tournament: 'marchmadness', key: 'lastAuctionSale' } } })
   if (lastSaleRow?.value) {
     try {
       const lastSale = JSON.parse(lastSaleRow.value) as { teamName: string }
       if (lastSale.teamName === michigan.name) {
-        await prisma.settings.delete({ where: { key: 'lastAuctionSale' } })
+        await prisma.settings.delete({ where: { tournament_key: { tournament: 'marchmadness', key: 'lastAuctionSale' } } })
         console.log(`Cleared lastAuctionSale (was ${michigan.name}).`)
       }
     } catch {

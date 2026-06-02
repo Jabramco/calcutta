@@ -1,4 +1,5 @@
 import { Owner, Team } from '@prisma/client'
+import type { PayoutLine } from '@/lib/tournament'
 
 export type { Owner, Team }
 
@@ -22,22 +23,8 @@ export interface LeaderboardEntry {
 
 export interface GlobalStats {
   totalPot: number
-  payoutPerWin: {
-    round64: number
-    round32: number
-    sweet16: number
-    elite8: number
-    final4: number
-    championship: number
-  }
-  percentages: {
-    round64: string
-    round32: string
-    sweet16: string
-    elite8: string
-    final4: string
-    championship: string
-  }
+  /** Tournament-aware payout buckets (see lib/tournament.ts). */
+  payouts: PayoutLine[]
 }
 
 export interface FinanceEntry {

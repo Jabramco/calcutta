@@ -44,15 +44,6 @@ type RainParticle = {
   fontSizePx: number
 }
 
-const PAYOUT_ROWS: { key: keyof GlobalStats['payoutPerWin']; label: string }[] = [
-  { key: 'round64', label: 'Round of 64' },
-  { key: 'round32', label: 'Round of 32' },
-  { key: 'sweet16', label: 'Sweet 16' },
-  { key: 'elite8', label: 'Elite 8' },
-  { key: 'final4', label: 'Final Four' },
-  { key: 'championship', label: 'Championship' }
-]
-
 /** Podium row + rank — 1st green (animated via .leaderboard-podium-first), 2nd cyan, 3rd purple */
 function leaderboardPodiumRowClass(index: number): string {
   if (index === 0) {
@@ -247,7 +238,7 @@ export default function DashboardPage() {
             typeof statsJson === 'object' &&
             !Array.isArray(statsJson) &&
             'totalPot' in statsJson &&
-            'payoutPerWin' in statsJson
+            'payouts' in statsJson
             ? statsJson
             : null
         )
@@ -638,18 +629,18 @@ export default function DashboardPage() {
               Payout
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 w-full">
-              {PAYOUT_ROWS.map(({ key, label }) => (
+              {stats.payouts.map((line) => (
                 <div
-                  key={key}
+                  key={line.key}
                   className="glass-card rounded-xl border border-[#2a2a38] px-3 py-2.5 sm:px-3.5 sm:py-3 min-w-0"
                 >
                   <div className="text-[10px] sm:text-[11px] text-[#6a6a82] leading-snug line-clamp-2 mb-1">
-                    {label}
+                    {line.label}
                   </div>
-                  <div className="text-sm sm:text-base font-semibold text-white tabular-nums truncate" title={formatCurrency(stats.payoutPerWin[key])}>
-                    {formatCurrency(stats.payoutPerWin[key])}
+                  <div className="text-sm sm:text-base font-semibold text-white tabular-nums truncate" title={formatCurrency(line.perWin)}>
+                    {formatCurrency(line.perWin)}
                   </div>
-                  <div className="text-[10px] text-[#6a6a82] mt-0.5">{stats.percentages[key]} of pot</div>
+                  <div className="text-[10px] text-[#6a6a82] mt-0.5">{line.pctLabel} of pot</div>
                 </div>
               ))}
             </div>

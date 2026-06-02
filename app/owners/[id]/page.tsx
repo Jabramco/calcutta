@@ -7,6 +7,7 @@ import type { Team } from '@prisma/client'
 import { OwnerWithTeams } from '@/lib/types'
 import { formatCurrency, formatROI, calculateTeamPayout, calculateTotalPot } from '@/lib/calculations'
 import { isTeamEliminated } from '@/lib/tournamentElimination'
+import { teamFlag } from '@/lib/tournament'
 
 export default function OwnerPage() {
   const params = useParams()
@@ -152,7 +153,10 @@ export default function OwnerPage() {
                         {team.seed}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
-                        {team.name}
+                        {(() => {
+                          const flag = teamFlag(team.name, team.tournament)
+                          return flag ? `${flag} ${team.name}` : team.name
+                        })()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-[#a0a0b8]">
                         {formatCurrency(Number(team.cost))}

@@ -47,12 +47,12 @@ async function main() {
   })
 
   // Clear lastAuctionSale if it was one of these teams
-  const lastSaleRow = await prisma.settings.findUnique({ where: { key: 'lastAuctionSale' } })
+  const lastSaleRow = await prisma.settings.findUnique({ where: { tournament_key: { tournament: 'marchmadness', key: 'lastAuctionSale' } } })
   if (lastSaleRow?.value) {
     try {
       const lastSale = JSON.parse(lastSaleRow.value) as { teamName: string }
       if (toUnassign.some((t) => t.name === lastSale.teamName)) {
-        await prisma.settings.delete({ where: { key: 'lastAuctionSale' } })
+        await prisma.settings.delete({ where: { tournament_key: { tournament: 'marchmadness', key: 'lastAuctionSale' } } })
         console.log(`Cleared lastAuctionSale (was ${lastSale.teamName}).`)
       }
     } catch {

@@ -1,11 +1,21 @@
 import { NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { getCurrentTournament } from '@/lib/tournamentServer'
+import {
+  auctionableTeamWhere,
+  formatTeamDescriptor,
+  getTournamentConfig,
+  type TournamentKey
+} from '@/lib/tournament'
 
-const SPEND_CAP = 250
-
-/** Total $ spent by owner (by name). Only displayable teams (dogTeamId null). */
-async function getOwnerTotalSpend(prismaOrTx: any, ownerName: string): Promise<number> {
-  const owner = await prismaOrTx.owner.findFirst({ where: { name: ownerName } })
+/** Total $ spent by owner (by name) within a tournament. Only displayable teams (dogTeamId null). */
+async function getOwnerTotalSpend(
+  prismaOrTx: any,
+  ownerName: string,
+  tournament: TournamentKey
+): Promise<number> {
+  const owner = await prismaOrTx.owner.findFirst({ where: { name: ownerName, tournament } })
   if (!owner) return 0
   const teams = await prismaOrTx.team.findMany({
     where: { ownerId: owner.id, dogTeamId: null },
@@ -14,14 +24,15 @@ async function getOwnerTotalSpend(prismaOrTx: any, ownerName: string): Promise<n
   return teams.reduce((sum: number, t: { cost: number }) => sum + Number(t.cost), 0)
 }
 
-// Helper function to get or create auction state
-async function getAuctionState() {
-  let state = await prisma.auctionState.findFirst()
-  
+// Helper function to get or create auction state for a tournament
+async function getAuctionState(tournament: TournamentKey) {
+  let state = await prisma.auctionState.findFirst({ where: { tournament } })
+
   if (!state) {
     // Create initial state if it doesn't exist
     state = await prisma.auctionState.create({
       data: {
+        tournament,
         isActive: false,
         currentTeamId: null,
         currentBid: 0,
@@ -31,7 +42,7 @@ async function getAuctionState() {
       }
     })
   }
-  
+
   return state
 }
 
@@ -48,25 +59,30 @@ function parseState(dbState: any) {
 }
 
 const AUCTION_EVENT_LOG_KEY = 'auctionEventLog'
+const LAST_SALE_KEY = 'lastAuctionSale'
 type AuctionEvent = { type: string; message: string; timestamp: number; bidder?: string; amount?: number }
 
-async function appendAuctionEvent(prismaOrTx: any, event: AuctionEvent) {
-  const row = await prismaOrTx.settings.findUnique({ where: { key: AUCTION_EVENT_LOG_KEY } })
+async function appendAuctionEvent(prismaOrTx: any, tournament: TournamentKey, event: AuctionEvent) {
+  const row = await prismaOrTx.settings.findUnique({
+    where: { tournament_key: { tournament, key: AUCTION_EVENT_LOG_KEY } }
+  })
   const events: AuctionEvent[] = row?.value ? (() => { try { return JSON.parse(row.value) } catch { return [] } })() : []
   events.push(event)
   await prismaOrTx.settings.upsert({
-    where: { key: AUCTION_EVENT_LOG_KEY },
-    create: { key: AUCTION_EVENT_LOG_KEY, value: JSON.stringify(events) },
+    where: { tournament_key: { tournament, key: AUCTION_EVENT_LOG_KEY } },
+    create: { tournament, key: AUCTION_EVENT_LOG_KEY, value: JSON.stringify(events) },
     update: { value: JSON.stringify(events) }
   })
 }
 
 export async function GET(request: Request) {
+  const tournament = await getCurrentTournament()
+  const config = getTournamentConfig(tournament)
   try {
     const { searchParams } = new URL(request.url)
     const forUser = searchParams.get('forUser')?.trim() || null
 
-    const dbState = await getAuctionState()
+    const dbState = await getAuctionState(tournament)
     const state = parseState(dbState)
     
     let currentTeam = null
@@ -79,7 +95,9 @@ export async function GET(request: Request) {
 
     // So clients that rejoin see "SOLD to X for $Y!" — stored in Settings to avoid schema change
     let lastSale: { teamName: string; winner: string; amount: number; remainingSpend?: number } | null = null
-    const lastSaleRow = await prisma.settings.findUnique({ where: { key: 'lastAuctionSale' } })
+    const lastSaleRow = await prisma.settings.findUnique({
+      where: { tournament_key: { tournament, key: LAST_SALE_KEY } }
+    })
     if (lastSaleRow?.value) {
       try {
         lastSale = JSON.parse(lastSaleRow.value) as { teamName: string; winner: string; amount: number; remainingSpend?: number }
@@ -90,7 +108,9 @@ export async function GET(request: Request) {
 
     // Full auction event log so any device sees full history (bids, sold, now auctioning, etc.)
     let events: AuctionEvent[] = []
-    const eventLogRow = await prisma.settings.findUnique({ where: { key: AUCTION_EVENT_LOG_KEY } })
+    const eventLogRow = await prisma.settings.findUnique({
+      where: { tournament_key: { tournament, key: AUCTION_EVENT_LOG_KEY } }
+    })
     if (eventLogRow?.value) {
       try {
         events = JSON.parse(eventLogRow.value) as AuctionEvent[]
@@ -101,17 +121,11 @@ export async function GET(request: Request) {
 
     let bidderSpend: number | null = null
     if (forUser) {
-      bidderSpend = await getOwnerTotalSpend(prisma, forUser)
+      bidderSpend = await getOwnerTotalSpend(prisma, forUser, tournament)
     }
 
     const unassignedTeams = await prisma.team.findMany({
-      where: {
-        ownerId: null,
-        OR: [
-          { isDogs: true },
-          { seed: { gte: 1, lte: 13 }, dogTeamId: null }
-        ]
-      },
+      where: auctionableTeamWhere(tournament),
       select: { id: true }
     })
     const teamsRemaining = unassignedTeams.length
@@ -138,7 +152,7 @@ export async function GET(request: Request) {
       bids: [],
       lastBidTime: null,
       currentTeam: null,
-      teamsRemaining: 56,
+      teamsRemaining: config.auctionableCount,
       lastSale: null,
       events: []
     })
@@ -146,12 +160,15 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const tournament = await getCurrentTournament()
+  const config = getTournamentConfig(tournament)
+  const SPEND_CAP = config.spendCap
   try {
     const body = await request.json()
-    const { action, teamId, bidder, amount } = body
+    const { action, bidder, amount } = body
 
-    const dbState = await getAuctionState()
-    let state = parseState(dbState)
+    const dbState = await getAuctionState(tournament)
+    const state = parseState(dbState)
 
     if (action === 'start' || action === 'next') {
       // 'next' only when no team is currently being auctioned (don't skip a team without selling)
@@ -162,15 +179,8 @@ export async function POST(request: Request) {
         )
       }
 
-      // Unassigned = seeds 1–13 or Dogs (exclude member teams 14/15/16)
       const unassignedTeams = await prisma.team.findMany({
-        where: {
-          ownerId: null,
-          OR: [
-            { isDogs: true },
-            { seed: { gte: 1, lte: 13 }, dogTeamId: null }
-          ]
-        }
+        where: auctionableTeamWhere(tournament)
       })
 
       if (unassignedTeams.length === 0) {
@@ -198,9 +208,9 @@ export async function POST(request: Request) {
 
       const now = Date.now()
       if (action === 'start') {
-        await appendAuctionEvent(prisma, { type: 'system', message: 'Auction started! First team selected randomly...', timestamp: now })
+        await appendAuctionEvent(prisma, tournament, { type: 'system', message: 'Auction started! First team selected randomly...', timestamp: now })
       }
-      await appendAuctionEvent(prisma, { type: 'bot', message: `Now auctioning: ${randomTeam.name} - ${randomTeam.region} Region, Seed #${randomTeam.seed}`, timestamp: now + (action === 'start' ? 1 : 0) })
+      await appendAuctionEvent(prisma, tournament, { type: 'bot', message: `Now auctioning: ${randomTeam.name} - ${formatTeamDescriptor(config, randomTeam)}`, timestamp: now + (action === 'start' ? 1 : 0) })
 
       return NextResponse.json({ success: true, state: parseState(updatedDbState) })
     }
@@ -225,7 +235,7 @@ export async function POST(request: Request) {
       const now = Date.now()
       try {
         const updatedDbState = await prisma.$transaction(async (tx) => {
-          const rows = await tx.$queryRaw<Array<{ id: number; isActive: boolean; currentTeamId: number | null; currentBid: number; currentBidder: string | null; bids: string; lastBidTime: bigint | null }>>`SELECT id, "isActive", "currentTeamId", "currentBid", "currentBidder", bids, "lastBidTime" FROM "AuctionState" LIMIT 1 FOR UPDATE`
+          const rows = await tx.$queryRaw<Array<{ id: number; isActive: boolean; currentTeamId: number | null; currentBid: number; currentBidder: string | null; bids: string; lastBidTime: bigint | null }>>(Prisma.sql`SELECT id, "isActive", "currentTeamId", "currentBid", "currentBidder", bids, "lastBidTime" FROM "AuctionState" WHERE "tournament" = ${tournament} LIMIT 1 FOR UPDATE`)
           const locked = rows[0]
           if (!locked) throw new Error('NO_STATE')
 
@@ -233,7 +243,7 @@ export async function POST(request: Request) {
           if (!lockedState.isActive || !lockedState.currentTeamId) throw new Error('NO_ACTIVE_AUCTION')
           if (bidAmount <= lockedState.currentBid) throw new Error('BID_TOO_LOW')
 
-          const currentTotal = await getOwnerTotalSpend(tx, bidder.trim())
+          const currentTotal = await getOwnerTotalSpend(tx, bidder.trim(), tournament)
           if (currentTotal + bidAmount > SPEND_CAP) throw new Error('SPEND_CAP_EXCEEDED')
 
           const newBid = { bidder: bidder.trim(), amount: bidAmount, timestamp: now }
@@ -247,13 +257,13 @@ export async function POST(request: Request) {
               lastBidTime: BigInt(now)
             }
           })
-          await appendAuctionEvent(tx, { type: 'bid', message: `${bidder.trim()} bids ${formatCurrency(bidAmount)}!`, timestamp: now, bidder: bidder.trim(), amount: bidAmount })
+          await appendAuctionEvent(tx, tournament, { type: 'bid', message: `${bidder.trim()} bids ${formatCurrency(bidAmount)}!`, timestamp: now, bidder: bidder.trim(), amount: bidAmount })
           return updated
         })
         return NextResponse.json({ success: true, state: parseState(updatedDbState) })
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e)
-        if (msg === 'SPEND_CAP_EXCEEDED') return NextResponse.json({ error: "You can't spend over $250" }, { status: 400 })
+        if (msg === 'SPEND_CAP_EXCEEDED') return NextResponse.json({ error: `You can't spend over $${SPEND_CAP}` }, { status: 400 })
         if (msg === 'BID_TOO_LOW') return NextResponse.json({ error: 'Bid must be higher than current bid' }, { status: 400 })
         if (msg === 'NO_ACTIVE_AUCTION') return NextResponse.json({ error: 'No active auction' }, { status: 400 })
         if (msg === 'NO_STATE') return NextResponse.json({ error: 'No active auction' }, { status: 400 })
@@ -264,7 +274,7 @@ export async function POST(request: Request) {
     if (action === 'sold') {
       // Run sold in a transaction with row lock so two concurrent requests can't both advance.
       const result = await prisma.$transaction(async (tx) => {
-        const rows = await tx.$queryRaw<Array<{ id: number; isActive: boolean; currentTeamId: number | null; currentBid: number; currentBidder: string | null; bids: string; lastBidTime: bigint | null }>>`SELECT id, "isActive", "currentTeamId", "currentBid", "currentBidder", bids, "lastBidTime" FROM "AuctionState" LIMIT 1 FOR UPDATE`
+        const rows = await tx.$queryRaw<Array<{ id: number; isActive: boolean; currentTeamId: number | null; currentBid: number; currentBidder: string | null; bids: string; lastBidTime: bigint | null }>>(Prisma.sql`SELECT id, "isActive", "currentTeamId", "currentBid", "currentBidder", bids, "lastBidTime" FROM "AuctionState" WHERE "tournament" = ${tournament} LIMIT 1 FOR UPDATE`)
         const lockedState = rows[0]
         if (!lockedState) return { noOp: true, state: null, currentTeam: null, error: null, status: 400 }
 
@@ -287,9 +297,9 @@ export async function POST(request: Request) {
           return { noOp: true, state: { ...state, currentTeam }, currentTeam, error: "Wait for 'Going once' and 'Going TWICE' before selling.", status: 400 }
         }
 
-        let owner = await tx.owner.findFirst({ where: { name: state.currentBidder! } })
+        let owner = await tx.owner.findFirst({ where: { name: state.currentBidder!, tournament } })
         if (!owner) {
-          owner = await tx.owner.create({ data: { name: state.currentBidder! } })
+          owner = await tx.owner.create({ data: { name: state.currentBidder!, tournament } })
         }
         const soldTeam = await tx.team.findUnique({ where: { id: state.currentTeamId } })
         await tx.team.update({
@@ -297,7 +307,7 @@ export async function POST(request: Request) {
           data: { ownerId: owner.id, cost: state.currentBid }
         })
 
-        const totalSpend = await getOwnerTotalSpend(tx, state.currentBidder!)
+        const totalSpend = await getOwnerTotalSpend(tx, state.currentBidder!, tournament)
         const remainingSpend = SPEND_CAP - totalSpend
         const formatCurrency = (n: number) => `$${Number(n).toFixed(2)}`
         const soldMessage = `SOLD to ${state.currentBidder} for ${formatCurrency(state.currentBid)}! (${formatCurrency(remainingSpend)} remaining to spend)`
@@ -309,27 +319,21 @@ export async function POST(request: Request) {
           remainingSpend
         })
         await tx.settings.upsert({
-          where: { key: 'lastAuctionSale' },
-          create: { key: 'lastAuctionSale', value: lastSaleJson },
+          where: { tournament_key: { tournament, key: LAST_SALE_KEY } },
+          create: { tournament, key: LAST_SALE_KEY, value: lastSaleJson },
           update: { value: lastSaleJson }
         })
 
         const unassignedTeams = await tx.team.findMany({
-          where: {
-            ownerId: null,
-            OR: [
-              { isDogs: true },
-              { seed: { gte: 1, lte: 13 }, dogTeamId: null }
-            ]
-          }
+          where: auctionableTeamWhere(tournament)
         })
         const now = Date.now()
-        await appendAuctionEvent(tx, { type: 'sold', message: soldMessage, timestamp: now })
+        await appendAuctionEvent(tx, tournament, { type: 'sold', message: soldMessage, timestamp: now })
 
         let updatedDbState
         if (unassignedTeams.length > 0) {
           const randomTeam = unassignedTeams[Math.floor(Math.random() * unassignedTeams.length)]
-          await appendAuctionEvent(tx, { type: 'bot', message: `Now auctioning: ${randomTeam.name} - ${randomTeam.region} Region, Seed #${randomTeam.seed}`, timestamp: now + 1 })
+          await appendAuctionEvent(tx, tournament, { type: 'bot', message: `Now auctioning: ${randomTeam.name} - ${formatTeamDescriptor(config, randomTeam)}`, timestamp: now + 1 })
           updatedDbState = await tx.auctionState.update({
             where: { id: lockedState.id },
             data: {

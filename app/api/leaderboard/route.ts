@@ -1,16 +1,20 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { calculateTotalPot, calculateOwnerStats } from '@/lib/calculations'
+import { getCurrentTournament } from '@/lib/tournamentServer'
 
 export async function GET() {
   try {
+    const tournament = await getCurrentTournament()
     const owners = await prisma.owner.findMany({
+      where: { tournament },
       include: {
         teams: true
       }
     })
 
     const teams = await prisma.team.findMany({
+      where: { tournament },
       select: { cost: true }
     })
 

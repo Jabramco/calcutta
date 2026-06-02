@@ -21,44 +21,65 @@ model User {
 
 model Owner {
   id       Int      @id @default(autoincrement())
-  name     String   @unique
+  name     String
+  // Which tournament/sport this owner belongs to ("marchmadness" | "worldcup").
+  tournament String @default("marchmadness")
   paid     Boolean  @default(false)
   paidOut  Boolean  @default(false)
   teams    Team[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([tournament, name])
 }
 
 model Team {
   id            Int      @id @default(autoincrement())
   name          String
-  region        String
-  seed          Int
+  // Which tournament/sport this team belongs to ("marchmadness" | "worldcup").
+  tournament    String   @default("marchmadness")
+  region        String   // NCAA region (South/West/East/Midwest) or World Cup group (A–L)
+  seed          Int      // NCAA seed (1–16) or World Cup position within group (1–4)
   ownerId       Int?
   owner         Owner?   @relation(fields: [ownerId], references: [id])
   cost          Float  @default(0)
+  // Knockout-round wins. Shared columns; meaning is parameterized per tournament
+  // (see lib/tournament.ts payoutRounds field mapping). March Madness: R64→Championship.
+  // World Cup: round64=Round of 16, round32=Round of 8, sweet16=Final Four, elite8=Championship.
   round64       Boolean  @default(false)
   round32       Boolean  @default(false)
   sweet16       Boolean  @default(false)
   elite8        Boolean  @default(false)
   final4        Boolean  @default(false)
   championship  Boolean  @default(false)
+  // World Cup only: number of group-stage match wins (0–3) and "worst goal differential" booby prize.
+  groupWins     Int      @default(0)
+  worstGd       Boolean  @default(false)
   isDogs        Boolean  @default(false)   // true = "Dogs {region}" aggregate (seeds 14–16)
   dogTeamId     Int?                       // if set, this team is seed 14/15/16 and belongs to Dogs team
   dogTeam       Team?    @relation("DogMembers", fields: [dogTeamId], references: [id])
   dogMembers    Team[]   @relation("DogMembers")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([tournament])
 }
 
 model Settings {
   id    Int    @id @default(autoincrement())
-  key   String @unique
+  // Settings are scoped per tournament so each experience keeps its own
+  // auction event log, last sale, sync timestamps, etc.
+  tournament String @default("marchmadness")
+  key   String
   value String
+
+  @@unique([tournament, key])
 }
 
 model AuctionState {
   id             Int      @id @default(autoincrement())
+  // One auction state row per tournament/sport.
+  tournament     String   @default("marchmadness")
   isActive       Boolean  @default(false)
   currentTeamId  Int?
   currentBid     Float    @default(0)
@@ -66,4 +87,6 @@ model AuctionState {
   bids           String   @default("[]") // JSON string of bids array
   lastBidTime    BigInt?
   updatedAt      DateTime @updatedAt
+
+  @@unique([tournament])
 }

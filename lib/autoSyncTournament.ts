@@ -3,6 +3,8 @@ import { runTournamentImport } from '@/lib/tournamentImport'
 
 const LAST_SYNC_KEY = 'tournamentAutoSyncLastMs'
 const LOCK_UNTIL_KEY = 'tournamentAutoSyncLockUntilMs'
+// ESPN import only ever applies to the NCAA (March Madness) experience.
+const SYNC_TOURNAMENT = 'marchmadness'
 
 function parseMs(value: string | null | undefined): number {
   if (!value) return 0
@@ -33,7 +35,7 @@ export async function maybeAutoSyncTournament(): Promise<void> {
 
   try {
     const settings = await prisma.settings.findMany({
-      where: { key: { in: [LAST_SYNC_KEY, LOCK_UNTIL_KEY] } }
+      where: { tournament: SYNC_TOURNAMENT, key: { in: [LAST_SYNC_KEY, LOCK_UNTIL_KEY] } }
     })
     const byKey = new Map(settings.map((s) => [s.key, s.value]))
     const lastMs = parseMs(byKey.get(LAST_SYNC_KEY))
@@ -43,9 +45,9 @@ export async function maybeAutoSyncTournament(): Promise<void> {
     if (lastMs > 0 && now - lastMs < minIntervalMs) return
 
     await prisma.settings.upsert({
-      where: { key: LOCK_UNTIL_KEY },
+      where: { tournament_key: { tournament: SYNC_TOURNAMENT, key: LOCK_UNTIL_KEY } },
       update: { value: String(now + lockWindowMs) },
-      create: { key: LOCK_UNTIL_KEY, value: String(now + lockWindowMs) }
+      create: { tournament: SYNC_TOURNAMENT, key: LOCK_UNTIL_KEY, value: String(now + lockWindowMs) }
     })
 
     const result = await runTournamentImport(tournamentYear())
@@ -54,15 +56,15 @@ export async function maybeAutoSyncTournament(): Promise<void> {
     }
 
     await prisma.settings.upsert({
-      where: { key: LAST_SYNC_KEY },
+      where: { tournament_key: { tournament: SYNC_TOURNAMENT, key: LAST_SYNC_KEY } },
       update: { value: String(Date.now()) },
-      create: { key: LAST_SYNC_KEY, value: String(Date.now()) }
+      create: { tournament: SYNC_TOURNAMENT, key: LAST_SYNC_KEY, value: String(Date.now()) }
     })
 
     await prisma.settings.upsert({
-      where: { key: LOCK_UNTIL_KEY },
+      where: { tournament_key: { tournament: SYNC_TOURNAMENT, key: LOCK_UNTIL_KEY } },
       update: { value: '0' },
-      create: { key: LOCK_UNTIL_KEY, value: '0' }
+      create: { tournament: SYNC_TOURNAMENT, key: LOCK_UNTIL_KEY, value: '0' }
     })
   } catch (error) {
     console.error('[autoSyncTournament] skipped due to error:', error)

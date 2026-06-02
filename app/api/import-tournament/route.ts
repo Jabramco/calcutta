@@ -43,6 +43,7 @@ export async function POST(request: Request) {
 export async function DELETE() {
   try {
     await prisma.team.updateMany({
+      where: { tournament: 'marchmadness' },
       data: {
         round64: false,
         round32: false,

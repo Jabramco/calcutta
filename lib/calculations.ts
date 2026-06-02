@@ -1,6 +1,8 @@
 import { Team, Owner } from '@prisma/client'
+import { resolveConfig } from '@/lib/tournament'
 
-// Payout percentages for each round
+// Payout percentages for each round (March Madness). Kept for backwards compatibility;
+// the canonical, tournament-aware payout structure lives in lib/tournament.ts.
 export const PAYOUT_PERCENTAGES = {
   round64: 0.16,    // 16% - 32 winners (0.5% per win)
   round32: 0.16,    // 16% - 16 winners (1% per win)
@@ -47,21 +49,43 @@ export function calculatePayoutPerWin(totalPot: number) {
 }
 
 /**
- * Calculate total payout for a team based on rounds won
+ * Calculate total payout for a team based on the rounds/buckets it won.
+ *
+ * Tournament-aware: the payout structure is selected from the team's own `tournament`
+ * field (see lib/tournament.ts), so March Madness teams pay out exactly as before while
+ * World Cup teams use the soccer payout structure (group-stage wins, knockout rounds,
+ * worst goal differential). Boolean buckets pay once; `count` buckets (group stage) pay
+ * per win.
  */
-export function calculateTeamPayout(
-  team: Pick<Team, 'round64' | 'round32' | 'sweet16' | 'elite8' | 'final4' | 'championship'>,
-  totalPot: number
-): number {
-  const payoutPerWin = calculatePayoutPerWin(totalPot)
+type PayoutTeam = Partial<
+  Pick<
+    Team,
+    | 'tournament'
+    | 'round64'
+    | 'round32'
+    | 'sweet16'
+    | 'elite8'
+    | 'final4'
+    | 'championship'
+    | 'groupWins'
+    | 'worstGd'
+  >
+>
+
+export function calculateTeamPayout(team: PayoutTeam, totalPot: number): number {
+  const config = resolveConfig(team.tournament)
+  const safePot = totalPot || 0
   let payout = 0
 
-  if (team.round64) payout += payoutPerWin.round64
-  if (team.round32) payout += payoutPerWin.round32
-  if (team.sweet16) payout += payoutPerWin.sweet16
-  if (team.elite8) payout += payoutPerWin.elite8
-  if (team.final4) payout += payoutPerWin.final4
-  if (team.championship) payout += payoutPerWin.championship
+  for (const round of config.payoutRounds) {
+    const perWin = (safePot * round.pctOfPot) / round.winners
+    const value = (team as Record<string, unknown>)[round.field]
+    if (round.fieldType === 'count') {
+      payout += perWin * Number(value ?? 0)
+    } else if (value) {
+      payout += perWin
+    }
+  }
 
   return payout
 }
@@ -79,7 +103,7 @@ export interface OwnerStats {
 
 export function calculateOwnerStats(
   owner: Owner,
-  ownerTeams: (Pick<Team, 'cost' | 'round64' | 'round32' | 'sweet16' | 'elite8' | 'final4' | 'championship'>)[],
+  ownerTeams: Team[],
   totalPot: number
 ): OwnerStats {
   const totalInvestment = ownerTeams.reduce((sum, team) => sum + Number(team.cost), 0)

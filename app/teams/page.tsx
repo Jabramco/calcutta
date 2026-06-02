@@ -5,12 +5,18 @@ import { TeamWithOwner } from '@/lib/types'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { RegionalTeamsBracket } from '@/components/teams/RegionalTeamsBracket'
 import { FullTournamentBracket } from '@/components/teams/FullTournamentBracket'
+import { GroupedTeamsView } from '@/components/teams/GroupedTeamsView'
+import { useMode } from '@/components/ModeContext'
+import { getTournamentConfig } from '@/lib/tournament'
 
 /** Year passed to ESPN bracket import (admin “Import results”). */
 const TOURNAMENT_IMPORT_YEAR = 2026
 
 export default function TeamsPage() {
   const { user: currentUser } = useAuth()
+  const { mode } = useMode()
+  const config = getTournamentConfig(mode)
+  const isWorldCup = mode === 'worldcup'
   const [teams, setTeams] = useState<TeamWithOwner[]>([])
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState(false)
@@ -45,7 +51,7 @@ export default function TeamsPage() {
     }
   }, [])
 
-  const regions = ['South', 'West', 'East', 'Midwest']
+  const regions = config.groups
   const teamsByRegion = regions.reduce((acc, region) => {
     acc[region] = teams.filter(t => t.region === region).sort((a, b) => a.seed - b.seed)
     return acc
@@ -146,34 +152,36 @@ export default function TeamsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <h1 className="text-3xl font-bold text-white">Teams</h1>
         <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-center">
-          <div
-            className="inline-flex rounded-lg border border-[#2a2a38] bg-[#1c1c28]/80 p-0.5"
-            role="group"
-            aria-label="Bracket layout"
-          >
-            <button
-              type="button"
-              onClick={() => setBracketLayout('full')}
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                bracketLayout === 'full'
-                  ? 'bg-[#00ceb8]/20 text-[#00ceb8]'
-                  : 'text-[#a0a0b8] hover:text-white'
-              }`}
+          {!isWorldCup && (
+            <div
+              className="inline-flex rounded-lg border border-[#2a2a38] bg-[#1c1c28]/80 p-0.5"
+              role="group"
+              aria-label="Bracket layout"
             >
-              Full bracket
-            </button>
-            <button
-              type="button"
-              onClick={() => setBracketLayout('regional')}
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                bracketLayout === 'regional'
-                  ? 'bg-[#00ceb8]/20 text-[#00ceb8]'
-                  : 'text-[#a0a0b8] hover:text-white'
-              }`}
-            >
-              By region
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => setBracketLayout('full')}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  bracketLayout === 'full'
+                    ? 'bg-[#00ceb8]/20 text-[#00ceb8]'
+                    : 'text-[#a0a0b8] hover:text-white'
+                }`}
+              >
+                Full bracket
+              </button>
+              <button
+                type="button"
+                onClick={() => setBracketLayout('regional')}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  bracketLayout === 'regional'
+                    ? 'bg-[#00ceb8]/20 text-[#00ceb8]'
+                    : 'text-[#a0a0b8] hover:text-white'
+                }`}
+              >
+                By region
+              </button>
+            </div>
+          )}
           <button
             onClick={downloadCSV}
             className="btn-gradient-primary px-6 py-2 rounded-lg font-medium transition-all"
@@ -183,8 +191,8 @@ export default function TeamsPage() {
         </div>
       </div>
 
-      {/* Admin Tournament Import Controls */}
-      {currentUser?.role === 'admin' && (
+      {/* Admin Tournament Import Controls (NCAA / March Madness only) */}
+      {currentUser?.role === 'admin' && !isWorldCup && (
         <div className="glass-card p-6 rounded-2xl mb-6">
           <h2 className="text-xl font-semibold text-white mb-4">Import tournament results</h2>
           <p className="text-sm text-[#a0a0b8] mb-4">
@@ -218,7 +226,13 @@ export default function TeamsPage() {
         </div>
       )}
 
-      {bracketLayout === 'regional' ? (
+      {isWorldCup ? (
+        <GroupedTeamsView
+          groups={config.groups}
+          teamsByGroup={teamsByRegion}
+          groupNoun={config.groupNoun}
+        />
+      ) : bracketLayout === 'regional' ? (
         <RegionalTeamsBracket teamsByRegion={teamsByRegion} />
       ) : (
         <FullTournamentBracket teamsByRegion={teamsByRegion} />

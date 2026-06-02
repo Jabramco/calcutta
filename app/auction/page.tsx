@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { formatCurrency } from '@/lib/calculations'
 import { AUCTION_PAGE_READONLY as AUCTION_ENV_READONLY } from '@/lib/auctionReadOnly'
+import { useMode } from '@/components/ModeContext'
+import { getTournamentConfig, formatRegion, teamFlag, type PayoutLine } from '@/lib/tournament'
 
 interface AuctionState {
   isActive: boolean
@@ -31,6 +33,8 @@ const COUNTDOWN_INTERVAL = 5000 // 5 seconds between warnings
 const INTRO_BETWEEN_TEAMS_MS = 6000 // Countdown between teams ("Introducing next team in Xs")
 
 export default function AuctionPage() {
+  const { mode } = useMode()
+  const config = getTournamentConfig(mode)
   const [auctionState, setAuctionState] = useState<AuctionState | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [currentUser, setCurrentUser] = useState<{username: string, role: string} | null>(null)
@@ -39,9 +43,9 @@ export default function AuctionPage() {
   const [countdown, setCountdown] = useState<number | null>(null)
   const [warningState, setWarningState] = useState<'none' | 'once' | 'twice'>('none')
   const [totalPot, setTotalPot] = useState(0)
-  const [payoutPerWin, setPayoutPerWin] = useState<{ round64: number; round32: number; sweet16: number; elite8: number; final4: number; championship: number } | null>(null)
+  const [payouts, setPayouts] = useState<PayoutLine[]>([])
   const [bidderSpend, setBidderSpend] = useState<number | null>(null)
-  const [teamsRemaining, setTeamsRemaining] = useState(64)
+  const [teamsRemaining, setTeamsRemaining] = useState(config.auctionableCount)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null)
   const lastAnnouncedWarning = useRef<'none' | 'once' | 'twice'>('none')
@@ -339,7 +343,7 @@ export default function AuctionPage() {
       const response = await fetch('/api/stats')
       const data = await response.json()
       setTotalPot(data.totalPot)
-      setPayoutPerWin(data.payoutPerWin ?? null)
+      setPayouts(Array.isArray(data.payouts) ? data.payouts : [])
     } catch (error) {
       console.error('Error fetching stats:', error)
     }
@@ -466,7 +470,7 @@ export default function AuctionPage() {
             if (!isFirstFetchAfterMountRef.current) {
               addChatMessage({
                 type: 'bot',
-                message: `Now auctioning: ${data.currentTeam.name} - ${data.currentTeam.region} Region, Seed #${data.currentTeam.seed}`,
+                message: `Now auctioning: ${data.currentTeam.name} - ${formatRegion(config, data.currentTeam.region)}, ${config.seedNoun} #${data.currentTeam.seed}`,
                 timestamp: Date.now()
               })
             }
@@ -476,7 +480,7 @@ export default function AuctionPage() {
         if (data.bids && data.bids.length > lastBidCount.current) {
           const newBids = data.bids.slice(lastBidCount.current)
           lastBidCount.current = data.bids.length
-          newBids.forEach((bid: any) => {
+          newBids.forEach((bid: { bidder: string; amount: number; timestamp: number }) => {
             setWarningState('none')
             lastAnnouncedWarning.current = 'none'
             hasAutoSold.current = false
@@ -899,16 +903,16 @@ export default function AuctionPage() {
               <div className="text-xs text-[#a0a0b8] uppercase tracking-wide mb-1">Total prize pool</div>
               <div className="text-xl font-bold text-[#00ceb8]">{formatCurrency(totalPot ?? 0)}</div>
             </div>
-            {payoutPerWin && (
+            {payouts.length > 0 && (
               <div className="glass-card rounded-xl p-4">
-                <div className="text-xs text-[#a0a0b8] uppercase tracking-wide mb-2">Payout per round</div>
+                <div className="text-xs text-[#a0a0b8] uppercase tracking-wide mb-2">Payout per win</div>
                 <div className="text-sm space-y-1 text-white">
-                  <div className="flex justify-between"><span>64</span><span>{formatCurrency(payoutPerWin.round64)}</span></div>
-                  <div className="flex justify-between"><span>32</span><span>{formatCurrency(payoutPerWin.round32)}</span></div>
-                  <div className="flex justify-between"><span>S16</span><span>{formatCurrency(payoutPerWin.sweet16)}</span></div>
-                  <div className="flex justify-between"><span>E8</span><span>{formatCurrency(payoutPerWin.elite8)}</span></div>
-                  <div className="flex justify-between"><span>F4</span><span>{formatCurrency(payoutPerWin.final4)}</span></div>
-                  <div className="flex justify-between"><span>Champ</span><span>{formatCurrency(payoutPerWin.championship)}</span></div>
+                  {payouts.map((line) => (
+                    <div key={line.key} className="flex justify-between">
+                      <span>{line.shortLabel}</span>
+                      <span>{formatCurrency(line.perWin)}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -916,10 +920,10 @@ export default function AuctionPage() {
               <div className="glass-card rounded-xl p-4">
                 <div className="text-xs text-[#a0a0b8] uppercase tracking-wide mb-1">Your spending</div>
                 <div className="text-xl font-bold text-white">
-                  {formatCurrency(bidderSpend ?? 0)} <span className="text-[#a0a0b8] font-normal text-base">/ $250 cap</span>
+                  {formatCurrency(bidderSpend ?? 0)} <span className="text-[#a0a0b8] font-normal text-base">/ ${config.spendCap} cap</span>
                 </div>
                 <div className="text-sm text-[#00ceb8] mt-1">
-                  {formatCurrency(250 - (bidderSpend ?? 0))} remaining to spend
+                  {formatCurrency(config.spendCap - (bidderSpend ?? 0))} remaining to spend
                 </div>
               </div>
             )}
@@ -940,12 +944,14 @@ export default function AuctionPage() {
                 <div className="text-3xl font-bold text-white mb-2">
                   {(() => {
                     const t = auctionState.currentTeam as { name: string; dogMembers?: { name: string }[] }
-                    if (t.dogMembers?.length) return `${t.name}: ${t.dogMembers.map(m => m.name).join(', ')}`
-                    return t.name
+                    const flag = teamFlag(t.name, mode)
+                    const prefix = flag ? `${flag} ` : ''
+                    if (t.dogMembers?.length) return `${prefix}${t.name}: ${t.dogMembers.map(m => m.name).join(', ')}`
+                    return `${prefix}${t.name}`
                   })()}
                 </div>
                 <div className="text-sm text-[#00ceb8] font-medium">
-                  {auctionState.currentTeam.region} Region • Seed #{(auctionState.currentTeam as { seed: number; isDogs?: boolean }).isDogs ? '14–16' : auctionState.currentTeam.seed}
+                  {formatRegion(config, auctionState.currentTeam.region)} • {config.seedNoun} #{(auctionState.currentTeam as { seed: number; isDogs?: boolean }).isDogs ? '14–16' : auctionState.currentTeam.seed}
                 </div>
               </div>
 
@@ -1082,11 +1088,11 @@ export default function AuctionPage() {
                 <h2 className="text-xl font-semibold text-white">Auction Chat</h2>
                 <span className="text-sm text-[#a0a0b8] whitespace-nowrap">{teamsRemaining} left</span>
               </div>
-              {/* Progress: 56 auctionable teams total; bar fills as teams are sold */}
+              {/* Progress: total auctionable teams for this tournament; bar fills as teams are sold */}
               <div className="h-2 w-full rounded-full bg-[#2a2a38] overflow-hidden">
                 <div
                   className="h-full rounded-full bg-gradient-to-b from-[#4cc9f0] to-[#00ceb8] transition-all duration-300"
-                  style={{ width: `${Math.min(100, Math.max(0, Math.round(((56 - teamsRemaining) / 56) * 100)))}%` }}
+                  style={{ width: `${Math.min(100, Math.max(0, Math.round(((config.auctionableCount - teamsRemaining) / config.auctionableCount) * 100)))}%` }}
                 />
               </div>
             </div>

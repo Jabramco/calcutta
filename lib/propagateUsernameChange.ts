@@ -3,6 +3,9 @@ import type { Prisma } from '@prisma/client'
 /** Must match auction route Settings key for the live event log */
 const AUCTION_EVENT_LOG_KEY = 'auctionEventLog'
 
+/** Username/pool sync is a production (March Madness) admin feature. */
+const TOURNAMENT = 'marchmadness'
+
 /** Same pool identity as login, ignoring ASCII case (e.g. User "justin" ↔ Owner "Justin"). */
 export function poolNameMatchesLogin(a: string, b: string): boolean {
   return a.localeCompare(b, undefined, { sensitivity: 'base' }) === 0
@@ -32,10 +35,10 @@ export async function propagateUsernameChange(
 ): Promise<void> {
   if (!oldUsername || !newUsername || poolNameMatchesLogin(oldUsername, newUsername)) return
 
-  let ownerWithOld = await tx.owner.findUnique({ where: { name: oldUsername } })
+  let ownerWithOld = await tx.owner.findFirst({ where: { name: oldUsername, tournament: TOURNAMENT } })
   if (!ownerWithOld) {
     ownerWithOld = await tx.owner.findFirst({
-      where: { name: { equals: oldUsername, mode: 'insensitive' } }
+      where: { name: { equals: oldUsername, mode: 'insensitive' }, tournament: TOURNAMENT }
     })
   }
 
@@ -43,6 +46,7 @@ export async function propagateUsernameChange(
     const conflict = await tx.owner.findFirst({
       where: {
         name: { equals: newUsername, mode: 'insensitive' },
+        tournament: TOURNAMENT,
         NOT: { id: ownerWithOld.id }
       }
     })
@@ -56,7 +60,7 @@ export async function propagateUsernameChange(
     await tx.owner.update({ where: { id: ownerWithOld.id }, data: { name: newUsername } })
   }
 
-  const st = await tx.auctionState.findFirst()
+  const st = await tx.auctionState.findFirst({ where: { tournament: TOURNAMENT } })
   if (st) {
     let bids: Array<{ bidder: string; amount: number; timestamp: number }> = []
     try {
@@ -78,7 +82,7 @@ export async function propagateUsernameChange(
     await tx.auctionState.update({ where: { id: st.id }, data: patch })
   }
 
-  const saleRow = await tx.settings.findUnique({ where: { key: 'lastAuctionSale' } })
+  const saleRow = await tx.settings.findUnique({ where: { tournament_key: { tournament: TOURNAMENT, key: 'lastAuctionSale' } } })
   if (saleRow?.value) {
     try {
       const sale = JSON.parse(saleRow.value) as {
@@ -90,7 +94,7 @@ export async function propagateUsernameChange(
       if (typeof sale.winner === 'string' && poolNameMatchesLogin(sale.winner, oldUsername)) {
         sale.winner = newUsername
         await tx.settings.update({
-          where: { key: 'lastAuctionSale' },
+          where: { tournament_key: { tournament: TOURNAMENT, key: 'lastAuctionSale' } },
           data: { value: JSON.stringify(sale) }
         })
       }
@@ -99,7 +103,7 @@ export async function propagateUsernameChange(
     }
   }
 
-  const logRow = await tx.settings.findUnique({ where: { key: AUCTION_EVENT_LOG_KEY } })
+  const logRow = await tx.settings.findUnique({ where: { tournament_key: { tournament: TOURNAMENT, key: AUCTION_EVENT_LOG_KEY } } })
   if (logRow?.value) {
     try {
       const events = JSON.parse(logRow.value) as Array<{
@@ -128,7 +132,7 @@ export async function propagateUsernameChange(
       }
       if (changed) {
         await tx.settings.update({
-          where: { key: AUCTION_EVENT_LOG_KEY },
+          where: { tournament_key: { tournament: TOURNAMENT, key: AUCTION_EVENT_LOG_KEY } },
           data: { value: JSON.stringify(events) }
         })
       }

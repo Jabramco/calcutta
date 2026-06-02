@@ -132,7 +132,10 @@ export async function runTournamentImport(year: number): Promise<TournamentImpor
     }
   }
 
-  const teams = await prisma.team.findMany()
+  // The ESPN NCAA import only ever touches the March Madness teams; the World Cup
+  // (and any other tournament) is never read or written here.
+  const IMPORT_TOURNAMENT = 'marchmadness'
+  const teams = await prisma.team.findMany({ where: { tournament: IMPORT_TOURNAMENT } })
   let updatedNames = 0
   for (const team of teams) {
     if (team.isDogs) continue
@@ -147,9 +150,10 @@ export async function runTournamentImport(year: number): Promise<TournamentImpor
   }
   console.log(`[tournamentImport] Updated ${updatedNames} team names`)
 
-  const teamsAfterBracket = await prisma.team.findMany()
+  const teamsAfterBracket = await prisma.team.findMany({ where: { tournament: IMPORT_TOURNAMENT } })
 
   await prisma.team.updateMany({
+    where: { tournament: IMPORT_TOURNAMENT },
     data: {
       round64: false,
       round32: false,
@@ -239,7 +243,7 @@ export async function runTournamentImport(year: number): Promise<TournamentImpor
   }
 
   const dogsTeams = await prisma.team.findMany({
-    where: { isDogs: true },
+    where: { tournament: IMPORT_TOURNAMENT, isDogs: true },
     include: { dogMembers: true }
   })
   for (const dogsTeam of dogsTeams) {

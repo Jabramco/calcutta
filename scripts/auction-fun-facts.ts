@@ -31,7 +31,7 @@ function formatTime(ts: number): string {
 }
 
 async function main() {
-  const row = await prisma.settings.findUnique({ where: { key: AUCTION_EVENT_LOG_KEY } })
+  const row = await prisma.settings.findUnique({ where: { tournament_key: { tournament: 'marchmadness', key: AUCTION_EVENT_LOG_KEY } } })
   if (!row?.value) {
     console.log('No auction event log found (key: auctionEventLog). Nothing to analyze.')
     return

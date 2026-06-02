@@ -1,14 +1,19 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { maybeAutoSyncTournament } from '@/lib/autoSyncTournament'
+import { getCurrentTournament } from '@/lib/tournamentServer'
 
 export async function GET() {
   try {
-    await maybeAutoSyncTournament()
+    const tournament = await getCurrentTournament()
+    // ESPN auto-import is NCAA-only; never run it (or touch its data) for the World Cup.
+    if (tournament === 'marchmadness') {
+      await maybeAutoSyncTournament()
+    }
 
     // Only show seeds 1–13 and Dogs (exclude member teams 14/15/16); include member names for Dogs
     const teams = await prisma.team.findMany({
-      where: { dogTeamId: null },
+      where: { tournament, dogTeamId: null },
       include: {
         owner: true,
         dogMembers: { select: { name: true }, orderBy: { seed: 'asc' } }
@@ -32,12 +37,14 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const tournament = await getCurrentTournament()
     const body = await request.json()
     const { name, region, seed, ownerId, cost } = body
 
     const team = await prisma.team.create({
       data: {
         name,
+        tournament,
         region,
         seed,
         ownerId,

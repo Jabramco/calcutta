@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import ModeSegmentedControl from './ModeSegmentedControl'
 
 interface User {
   id: number
@@ -67,9 +68,17 @@ export default function Navigation() {
     { href: '/admin', label: 'Admin', adminOnly: true }
   ]
 
+  // Both experiences share the same pages/auction, so the same nav is shown for each.
+  const visibleLinks = links
+
   return (
     <nav className="glass-nav shadow-lg sticky top-0 z-50">
       <div className="container mx-auto px-4">
+        {/* Mode switcher — centered at the top of the header */}
+        <div className="flex justify-center pt-3 pb-1">
+          <ModeSegmentedControl />
+        </div>
+
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-3 flex-shrink-0">
@@ -85,7 +94,7 @@ export default function Navigation() {
 
           {/* Desktop Navigation */}
           <div className="hidden lg:flex items-center space-x-2">
-            {links.map(link => {
+            {visibleLinks.map(link => {
               // Hide admin-only links from non-admin users
               if (link.adminOnly && (!user || user.role !== 'admin')) {
                 return null
@@ -160,7 +169,7 @@ export default function Navigation() {
         {mobileMenuOpen && (
           <div className="lg:hidden py-4 border-t border-[#2a2a38]">
             <div className="flex flex-col space-y-2">
-              {links.map(link => {
+              {visibleLinks.map(link => {
                 // Hide admin-only links from non-admin users
                 if (link.adminOnly && (!user || user.role !== 'admin')) {
                   return null

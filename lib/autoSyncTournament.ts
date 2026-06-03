@@ -1,10 +1,9 @@
 import prisma from '@/lib/prisma'
-import { runTournamentImport } from '@/lib/tournamentImport'
+import { runTournamentImport, runWorldCupImport } from '@/lib/tournamentImport'
+import { DEFAULT_TOURNAMENT, type TournamentKey } from '@/lib/tournament'
 
 const LAST_SYNC_KEY = 'tournamentAutoSyncLastMs'
 const LOCK_UNTIL_KEY = 'tournamentAutoSyncLockUntilMs'
-// ESPN import only ever applies to the NCAA (March Madness) experience.
-const SYNC_TOURNAMENT = 'marchmadness'
 
 function parseMs(value: string | null | undefined): number {
   if (!value) return 0
@@ -22,16 +21,24 @@ function tournamentYear(): number {
 }
 
 /**
- * Run ESPN import opportunistically during normal API traffic.
+ * Run the ESPN import opportunistically during normal API traffic.
  * - No external cron required.
  * - Throttled by interval to avoid repeated imports.
  * - Best effort: never throws to callers.
+ *
+ * Parameterized by tournament: March Madness pulls the NCAA basketball scoreboard,
+ * the World Cup pulls the FIFA soccer scoreboard. Throttle/lock state lives in
+ * tournament-scoped Settings rows, so the two experiences sync independently and
+ * one can never trigger or overwrite the other's import.
  */
-export async function maybeAutoSyncTournament(): Promise<void> {
+export async function maybeAutoSyncTournament(
+  tournament: TournamentKey = DEFAULT_TOURNAMENT
+): Promise<void> {
   const now = Date.now()
   const intervalMin = Math.max(1, parseInt(process.env.TOURNAMENT_AUTO_SYNC_MINUTES ?? '15', 10) || 15)
   const minIntervalMs = intervalMin * 60 * 1000
   const lockWindowMs = 2 * 60 * 1000
+  const SYNC_TOURNAMENT = tournament
 
   try {
     const settings = await prisma.settings.findMany({
@@ -50,9 +57,12 @@ export async function maybeAutoSyncTournament(): Promise<void> {
       create: { tournament: SYNC_TOURNAMENT, key: LOCK_UNTIL_KEY, value: String(now + lockWindowMs) }
     })
 
-    const result = await runTournamentImport(tournamentYear())
+    const result =
+      tournament === 'worldcup'
+        ? await runWorldCupImport(tournamentYear())
+        : await runTournamentImport(tournamentYear())
     if (!result.success && result.status !== 404) {
-      console.warn('[autoSyncTournament] import did not fully succeed:', result.error)
+      console.warn(`[autoSyncTournament] ${tournament} import did not fully succeed:`, result.error)
     }
 
     await prisma.settings.upsert({

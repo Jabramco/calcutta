@@ -1,6 +1,10 @@
 import { prisma } from '@/lib/prisma'
 
 const NCAA_API_BASE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball'
+// ESPN's public, key-less soccer API. The FIFA World Cup league slug is `fifa.world`
+// (mirrors the NCAA `mens-college-basketball` host + response shape: leagues/events/
+// competitions/competitors with team.displayName, score, status.type.state).
+const WORLD_CUP_API_BASE = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world'
 
 export type TournamentImportSuccess = {
   success: true
@@ -273,6 +277,297 @@ export async function runTournamentImport(year: number): Promise<TournamentImpor
     tournamentGames: tournamentGames.length,
     updatedTeams,
     updatedNames,
+    updates: updates.slice(0, 20)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// World Cup (FIFA, soccer) importer
+//
+// Shares the exact same return contract (TournamentImportResult) and the same
+// "reset result columns, then re-apply from the live feed" shape as the NCAA
+// importer above, and is driven by the same throttled orchestration in
+// lib/autoSyncTournament.ts. Only the sport-specific feed parsing differs (soccer
+// fixtures/groups/knockout rounds + goal differential vs. basketball bracket).
+//
+// It is HARD-SCOPED to tournament = 'worldcup' and never reads or writes March
+// Madness rows, exactly mirroring how runTournamentImport() is scoped to
+// 'marchmadness'.
+// ---------------------------------------------------------------------------
+
+const WORLD_CUP_TOURNAMENT = 'worldcup'
+
+// Minimal shape of the ESPN soccer scoreboard payload we rely on (typed so the
+// World Cup importer stays free of `any`).
+interface EspnCompetitor {
+  winner?: boolean
+  score?: string | number | null
+  team?: { displayName?: string; shortDisplayName?: string }
+}
+interface EspnEvent {
+  season?: { slug?: string }
+  competitions?: Array<{
+    status?: { type?: { completed?: boolean } }
+    competitors?: EspnCompetitor[]
+  }>
+}
+interface EspnScoreboard {
+  events?: EspnEvent[]
+}
+
+/**
+ * Normalize a country name to a stable key for matching ESPN's feed against our
+ * seeded Team rows. Strips diacritics + punctuation, drops the "and" stopword,
+ * then sorts the remaining tokens so word-order/punctuation differences collapse:
+ *   "Bosnia and Herzegovina" / "Bosnia-Herzegovina" → "bosnia herzegovina"
+ *   "DR Congo" / "Congo DR"                          → "congo dr"
+ *   "South Korea" / "Korea South" (either order)     → "korea south"
+ * Accented names that already match verbatim (Türkiye, Curaçao) collapse cleanly too.
+ */
+function normalizeCountry(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // strip combining diacritical marks
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w && w !== 'and')
+    .sort()
+    .join(' ')
+}
+
+/** ESPN competitor.score is a string for soccer (e.g. "2"); parse to a number. */
+function parseScore(raw: unknown): number | null {
+  if (raw == null) return null
+  const n = parseInt(String(raw), 10)
+  return Number.isFinite(n) ? n : null
+}
+
+/**
+ * Fetch the ESPN FIFA World Cup scoreboard and sync the 'worldcup' Team rows:
+ *  - groupWins   : number of group-stage matches won (0–3)
+ *  - round64     : won a Round of 16 match   (payout bucket "Round of 16")
+ *  - round32     : won a Quarterfinal match  (payout bucket "Round of 8")
+ *  - sweet16     : won a Semifinal match     (payout bucket "Final Four")
+ *  - elite8      : won the Final             (payout bucket "Championship")
+ *  - worstGd     : the single team with the worst goal differential across all
+ *                  completed matches (payout bucket "Worst GD" booby prize)
+ *
+ * The 2026 World Cup is a 48-team field with a Round of 32 before the Round of 16.
+ * The payout config (lib/tournament.ts) has no Round-of-32 bucket and its knockout
+ * `winners` counts (8/4/2/1) equal the match-winners of R16/QF/SF/Final, so each
+ * boolean is set when a team WINS a match in that round. Round-of-32 wins
+ * (advancing to the R16) are not an individually paid bucket, matching the config.
+ *
+ * Does not touch the DB when ESPN returns no completed matches (avoids clearing
+ * standings before kickoff), and never reads/writes March Madness rows.
+ */
+export async function runWorldCupImport(year: number): Promise<TournamentImportResult> {
+  console.log(`[worldCupImport] Fetching World Cup data for ${year}...`)
+
+  // `dates=<year>` scopes to the tournament season; limit covers all 104 matches
+  // (72 group + 16 R32 + 8 R16 + 4 QF + 2 SF + 1 3rd-place + 1 final) — the default
+  // page size caps at 100 and would drop the semifinals/final.
+  const url = `${WORLD_CUP_API_BASE}/scoreboard?dates=${year}&limit=300`
+
+  let response: Response
+  try {
+    response = await fetch(url, { cache: 'no-store' })
+  } catch (err) {
+    return {
+      success: false,
+      status: 502,
+      error: 'Failed to reach ESPN World Cup API',
+      details: err instanceof Error ? err.message : String(err)
+    }
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '')
+    console.error(`[worldCupImport] ESPN status ${response.status}`, errorText.slice(0, 200))
+    return {
+      success: false,
+      status: 502,
+      error: `Failed to fetch World Cup data: ${response.status}`,
+      details: errorText.slice(0, 500)
+    }
+  }
+
+  const data = (await response.json()) as EspnScoreboard
+  const events = data.events ?? []
+  console.log(`[worldCupImport] Received ${events.length} events`)
+
+  const completed = events.filter((e) => e.competitions?.[0]?.status?.type?.completed)
+  console.log(`[worldCupImport] ${completed.length} completed matches`)
+
+  if (completed.length === 0) {
+    return {
+      success: false,
+      status: 404,
+      error:
+        'No completed World Cup matches in ESPN response yet. Database unchanged (avoids clearing results).'
+    }
+  }
+
+  // Round slug → which boolean column a WIN in that round sets (per lib/tournament.ts).
+  const ROUND_FIELD: Record<string, 'round64' | 'round32' | 'sweet16' | 'elite8'> = {
+    'round-of-16': 'round64', // payout bucket "Round of 16"
+    quarterfinals: 'round32', // payout bucket "Round of 8"
+    semifinals: 'sweet16', // payout bucket "Final Four"
+    final: 'elite8' // payout bucket "Championship"
+  }
+
+  // Accumulate per ESPN team (keyed by normalized name).
+  type Agg = {
+    espnName: string
+    groupWins: number
+    round64: boolean
+    round32: boolean
+    sweet16: boolean
+    elite8: boolean
+    goalsFor: number
+    goalsAgainst: number
+    playedAny: boolean
+  }
+  const agg = new Map<string, Agg>()
+  const ensure = (espnName: string): Agg => {
+    const key = normalizeCountry(espnName)
+    let a = agg.get(key)
+    if (!a) {
+      a = {
+        espnName,
+        groupWins: 0,
+        round64: false,
+        round32: false,
+        sweet16: false,
+        elite8: false,
+        goalsFor: 0,
+        goalsAgainst: 0,
+        playedAny: false
+      }
+      agg.set(key, a)
+    }
+    return a
+  }
+
+  let championName = ''
+
+  for (const event of completed) {
+    const comp = event.competitions?.[0]
+    const competitors = comp?.competitors ?? []
+    if (competitors.length !== 2) continue
+    const slug = event.season?.slug as string | undefined
+
+    const [c0, c1] = competitors
+    const name0 = c0.team?.displayName || c0.team?.shortDisplayName
+    const name1 = c1.team?.displayName || c1.team?.shortDisplayName
+    if (!name0 || !name1) continue
+    const s0 = parseScore(c0.score)
+    const s1 = parseScore(c1.score)
+
+    const a0 = ensure(name0)
+    const a1 = ensure(name1)
+    a0.playedAny = true
+    a1.playedAny = true
+
+    // Goal differential accumulates over every completed match (group + knockout).
+    if (s0 != null && s1 != null) {
+      a0.goalsFor += s0
+      a0.goalsAgainst += s1
+      a1.goalsFor += s1
+      a1.goalsAgainst += s0
+    }
+
+    if (slug === 'group-stage') {
+      // ESPN sets winner=true on the victor; draws leave both false.
+      if (c0.winner) a0.groupWins++
+      else if (c1.winner) a1.groupWins++
+      continue
+    }
+
+    // Knockout rounds (round-of-32 has no payout bucket and is intentionally skipped).
+    const field = slug ? ROUND_FIELD[slug] : undefined
+    if (!field) continue
+    const winnerComp = c0.winner ? c0 : c1.winner ? c1 : null
+    if (!winnerComp) continue
+    const winnerAgg = winnerComp === c0 ? a0 : a1
+    winnerAgg[field] = true
+    if (field === 'elite8') {
+      championName = winnerComp.team?.displayName || winnerComp.team?.shortDisplayName || ''
+    }
+  }
+
+  // Apply to DB — scoped to World Cup rows ONLY.
+  const teams = await prisma.team.findMany({ where: { tournament: WORLD_CUP_TOURNAMENT } })
+
+  // Worst goal differential booby prize: the single tracked (seeded) team with ≥1
+  // completed match whose (goalsFor − goalsAgainst) is the lowest. Restricted to our
+  // own rows so the prize always lands on an auctioned team. Provisional while live.
+  const dbKeys = new Set(teams.map((t) => normalizeCountry(t.name)))
+  let worstKey: string | null = null
+  let worstGd = Number.POSITIVE_INFINITY
+  for (const [key, a] of agg.entries()) {
+    if (!a.playedAny || !dbKeys.has(key)) continue
+    const gd = a.goalsFor - a.goalsAgainst
+    if (gd < worstGd) {
+      worstGd = gd
+      worstKey = key
+    }
+  }
+
+  // Reset result columns first so eliminated/draw outcomes are reflected (mirrors NCAA importer).
+  await prisma.team.updateMany({
+    where: { tournament: WORLD_CUP_TOURNAMENT },
+    data: {
+      groupWins: 0,
+      round64: false,
+      round32: false,
+      sweet16: false,
+      elite8: false,
+      final4: false,
+      championship: false,
+      worstGd: false
+    }
+  })
+
+  let updatedTeams = 0
+  const updates: string[] = []
+
+  for (const team of teams) {
+    const a = agg.get(normalizeCountry(team.name))
+    if (!a) continue
+    const isWorst = worstKey === normalizeCountry(team.name)
+    await prisma.team.update({
+      where: { id: team.id },
+      data: {
+        groupWins: a.groupWins,
+        round64: a.round64,
+        round32: a.round32,
+        sweet16: a.sweet16,
+        elite8: a.elite8,
+        worstGd: isWorst
+      }
+    })
+    updatedTeams++
+    const parts: string[] = []
+    if (a.groupWins) parts.push(`${a.groupWins} group win${a.groupWins !== 1 ? 's' : ''}`)
+    if (a.round64) parts.push('R16')
+    if (a.round32) parts.push('R8')
+    if (a.sweet16) parts.push('FinalFour')
+    if (a.elite8) parts.push('Champion')
+    if (isWorst) parts.push('worstGD')
+    if (parts.length) updates.push(`${team.name}: ${parts.join(', ')}`)
+  }
+
+  console.log(`[worldCupImport] Updated ${updatedTeams} World Cup teams`)
+
+  return {
+    success: true,
+    message: `Successfully imported ${year} World Cup results (${completed.length} completed matches)`,
+    champion: championName,
+    tournamentGames: completed.length,
+    updatedTeams,
+    updatedNames: 0,
     updates: updates.slice(0, 20)
   }
 }

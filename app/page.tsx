@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation'
 import { formatCurrency, formatROI } from '@/lib/calculations'
 import { ownerHasAliveTeamInPool } from '@/lib/tournamentElimination'
 import { LeaderboardEntry, GlobalStats, type TeamWithOwner } from '@/lib/types'
+import ModeSegmentedControl from '@/components/ModeSegmentedControl'
 
 type UpcomingSide = {
   name: string
@@ -402,11 +403,14 @@ export default function DashboardPage() {
       </div>
 
       <div className="container mx-auto px-4 py-6 md:py-8 glass-content max-w-7xl">
-        <header className="mb-6">
-          <h1 className="text-3xl font-bold text-white tracking-tight">Dashboard</h1>
-          <p className="text-sm text-[#a0a0b8] mt-1 max-w-2xl">
-            Prize pool, payouts, standings, and matchups.
-          </p>
+        <header className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-white tracking-tight">Dashboard</h1>
+            <p className="text-sm text-[#a0a0b8] mt-1 max-w-2xl">
+              Prize pool, payouts, standings, and matchups.
+            </p>
+          </div>
+          <ModeSegmentedControl />
         </header>
 
         {hasLiveWisconsinGame && (

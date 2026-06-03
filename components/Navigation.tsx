@@ -4,7 +4,6 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import ModeSegmentedControl from './ModeSegmentedControl'
 
 interface User {
   id: number
@@ -74,11 +73,6 @@ export default function Navigation() {
   return (
     <nav className="glass-nav shadow-lg sticky top-0 z-50">
       <div className="container mx-auto px-4">
-        {/* Mode switcher — centered at the top of the header */}
-        <div className="flex justify-center pt-3 pb-1">
-          <ModeSegmentedControl />
-        </div>
-
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-3 flex-shrink-0">

@@ -6,10 +6,10 @@ import { getCurrentTournament } from '@/lib/tournamentServer'
 export async function GET() {
   try {
     const tournament = await getCurrentTournament()
-    // ESPN auto-import is NCAA-only; never run it (or touch its data) for the World Cup.
-    if (tournament === 'marchmadness') {
-      await maybeAutoSyncTournament()
-    }
+    // Auto-import the live ESPN feed for the active experience: NCAA basketball for
+    // March Madness, FIFA soccer for the World Cup. Each is hard-scoped to its own
+    // tournament rows and throttled independently, so neither can touch the other's data.
+    await maybeAutoSyncTournament(tournament)
 
     // Only show seeds 1–13 and Dogs (exclude member teams 14/15/16); include member names for Dogs
     const teams = await prisma.team.findMany({

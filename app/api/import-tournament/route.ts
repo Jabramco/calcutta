@@ -1,17 +1,23 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { runTournamentImport } from '@/lib/tournamentImport'
+import { runTournamentImport, runWorldCupImport } from '@/lib/tournamentImport'
+import { getCurrentTournament } from '@/lib/tournamentServer'
 
 export async function POST(request: Request) {
   try {
-    const { year } = await request.json()
-    const y = Number(year)
+    const tournament = await getCurrentTournament()
+    const body = await request.json().catch(() => ({}))
+    // World Cup uses the season year and defaults to the current year (its fixtures
+    // are keyed by `dates=<year>`); March Madness requires an explicit tournament year.
+    const yearInput = body?.year ?? (tournament === 'worldcup' ? new Date().getUTCFullYear() : undefined)
+    const y = Number(yearInput)
 
-    if (!year || Number.isNaN(y) || y < 2000 || y > 2100) {
+    if (!yearInput || Number.isNaN(y) || y < 2000 || y > 2100) {
       return NextResponse.json({ error: 'Valid year is required' }, { status: 400 })
     }
 
-    const result = await runTournamentImport(y)
+    const result =
+      tournament === 'worldcup' ? await runWorldCupImport(y) : await runTournamentImport(y)
 
     if (!result.success) {
       return NextResponse.json(
@@ -42,15 +48,20 @@ export async function POST(request: Request) {
 
 export async function DELETE() {
   try {
+    // Reset only the active experience's result columns. World Cup additionally
+    // clears its soccer-only fields (groupWins / worstGd); March Madness ignores them.
+    const tournament = await getCurrentTournament()
     await prisma.team.updateMany({
-      where: { tournament: 'marchmadness' },
+      where: { tournament },
       data: {
         round64: false,
         round32: false,
         sweet16: false,
         elite8: false,
         final4: false,
-        championship: false
+        championship: false,
+        groupWins: 0,
+        worstGd: false
       }
     })
 

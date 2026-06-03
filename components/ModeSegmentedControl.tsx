@@ -24,17 +24,16 @@ export default function ModeSegmentedControl() {
             type="button"
             role="tab"
             aria-selected={active}
+            aria-label={opt.label}
+            title={opt.label}
             onClick={() => setMode(opt.value)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-all ${
+            className={`inline-flex items-center justify-center w-9 h-9 rounded-lg text-lg leading-none transition-all ${
               active
                 ? 'nav-tab-active font-semibold'
                 : 'text-[#a0a0b8] hover:bg-[#1c1c28] hover:text-white'
             }`}
           >
-            <span className="text-sm sm:text-base leading-none" aria-hidden>
-              {opt.icon}
-            </span>
-            {opt.label}
+            <span aria-hidden>{opt.icon}</span>
           </button>
         )
       })}

@@ -119,34 +119,37 @@ const WORLD_CUP: TournamentConfig = {
   // 2026 format is a 48-team field: 12 groups of 4 → 72 group matches, then a 32-team
   // knockout bracket: Round of 32 → Round of 16 → Quarterfinal → Semifinal → Final.
   //
-  // Team result columns reused for the World Cup knockout (NCAA column → WC round):
-  //   round64  → Round of 32 win   (16 winners)
-  //   round32  → Round of 16 win   (8 winners)
-  //   sweet16  → Quarterfinal win  (4 winners)
-  //   elite8   → Semifinal win     (2 winners)
-  //   championship → Final win     (1 winner, = champion)
+  // Team result columns reused for the World Cup knockout (NCAA column → WC round). The
+  // knockout buckets pay for WINNING a match in the round (not merely reaching it), so the
+  // divisor (`winners`) is the number of match-winners in that round, and the column is set
+  // only on the winner:
+  //   round64  → won a Round of 32 match   (16 winners)
+  //   round32  → won a Round of 16 match   (8 winners)
+  //   sweet16  → won a Quarterfinal match  (4 winners)
+  //   elite8   → won a Semifinal match     (2 winners)
+  //   championship → won the Final         (1 winner = champion)
   //   final4   → UNUSED for the World Cup
   //   groupWins (count) → group-stage wins; worstGd / biggestUpset → World-Cup-only booleans.
   //
-  // Buckets (e.g. at a $1,000 pot) — all six win rounds pay an equal 15%:
-  //   Group Stage:   15% / 72 group wins (≈$2.08/win, $150 bucket — nominal, ignores draws)
-  //   Round of 32:   15% / 16 winners    ($9.375/win, $150 bucket)
-  //   Round of 16:   15% / 8 winners     ($18.75/win, $150 bucket)
-  //   Quarterfinal:  15% / 4 winners     ($37.50/win, $150 bucket)
-  //   Semifinal:     15% / 2 winners     ($75.00/win, $150 bucket)
-  //   Final:         15% / 1 winner      ($150.00,    $150 bucket)
+  // Buckets (e.g. at a $1,000 pot):
+  //   Group Stage:   14% / 72 group wins (≈$1.94/win, $140 bucket — nominal, ignores draws)
+  //   Round of 32:   14% / 16 winners    ($8.75/win,  $140 bucket)
+  //   Round of 16:   14% / 8 winners     ($17.50/win, $140 bucket)
+  //   Quarterfinal:  14% / 4 winners     ($35.00/win, $140 bucket)
+  //   Semifinal:     14% / 2 winners     ($70.00/win, $140 bucket)
+  //   Final:         20% / 1 winner      ($200.00,    $200 bucket)
   //   Biggest Upset:  5% / 1             ($50.00,     $50 bucket)
-  //   Worst GD:       5% / 1             ($50.00,     $50 bucket)
-  //   Total: 15 + 15 + 15 + 15 + 15 + 15 + 5 + 5 = 100%.
+  //   Worst Goal Diff:5% / 1             ($50.00,     $50 bucket)
+  //   Total: 14 + 14 + 14 + 14 + 14 + 20 + 5 + 5 = 100%.
   payoutRounds: [
-    { key: 'groupStage', field: 'groupWins', fieldType: 'count', label: 'Group Stage Win', shortLabel: 'Group', wonLabel: 'Group', pctOfPot: 0.15, pctLabel: '15%', winners: 72 },
-    { key: 'round32', field: 'round64', fieldType: 'boolean', label: 'Round of 32', shortLabel: 'R32', wonLabel: 'R32', pctOfPot: 0.15, pctLabel: '15%', winners: 16 },
-    { key: 'round16', field: 'round32', fieldType: 'boolean', label: 'Round of 16', shortLabel: 'R16', wonLabel: 'R16', pctOfPot: 0.15, pctLabel: '15%', winners: 8 },
-    { key: 'quarterfinal', field: 'sweet16', fieldType: 'boolean', label: 'Quarterfinal', shortLabel: 'QF', wonLabel: 'QF', pctOfPot: 0.15, pctLabel: '15%', winners: 4 },
-    { key: 'semifinal', field: 'elite8', fieldType: 'boolean', label: 'Semifinal', shortLabel: 'SF', wonLabel: 'SF', pctOfPot: 0.15, pctLabel: '15%', winners: 2 },
-    { key: 'final', field: 'championship', fieldType: 'boolean', label: 'Final', shortLabel: 'Final', wonLabel: 'Final', pctOfPot: 0.15, pctLabel: '15%', winners: 1 },
+    { key: 'groupStage', field: 'groupWins', fieldType: 'count', label: 'Group Stage Win', shortLabel: 'Group', wonLabel: 'Group', pctOfPot: 0.14, pctLabel: '14%', winners: 72 },
+    { key: 'round32', field: 'round64', fieldType: 'boolean', label: 'Round of 32 Win', shortLabel: 'R32', wonLabel: 'R32', pctOfPot: 0.14, pctLabel: '14%', winners: 16 },
+    { key: 'round16', field: 'round32', fieldType: 'boolean', label: 'Round of 16 Win', shortLabel: 'R16', wonLabel: 'R16', pctOfPot: 0.14, pctLabel: '14%', winners: 8 },
+    { key: 'quarterfinal', field: 'sweet16', fieldType: 'boolean', label: 'Quarterfinal Win', shortLabel: 'QF', wonLabel: 'QF', pctOfPot: 0.14, pctLabel: '14%', winners: 4 },
+    { key: 'semifinal', field: 'elite8', fieldType: 'boolean', label: 'Semifinal Win', shortLabel: 'SF', wonLabel: 'SF', pctOfPot: 0.14, pctLabel: '14%', winners: 2 },
+    { key: 'final', field: 'championship', fieldType: 'boolean', label: 'Final Win', shortLabel: 'Final', wonLabel: 'Final', pctOfPot: 0.20, pctLabel: '20%', winners: 1 },
     { key: 'biggestUpset', field: 'biggestUpset', fieldType: 'boolean', label: 'Biggest Upset', shortLabel: 'Upset', wonLabel: 'Upset', pctOfPot: 0.05, pctLabel: '5%', winners: 1 },
-    { key: 'worstGd', field: 'worstGd', fieldType: 'boolean', label: 'Worst GD', shortLabel: 'GD', wonLabel: 'GD', pctOfPot: 0.05, pctLabel: '5%', winners: 1 }
+    { key: 'worstGd', field: 'worstGd', fieldType: 'boolean', label: 'Worst Goal Diff', shortLabel: 'GD', wonLabel: 'GD', pctOfPot: 0.05, pctLabel: '5%', winners: 1 }
   ]
 }
 

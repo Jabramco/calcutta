@@ -348,20 +348,21 @@ function parseScore(raw: unknown): number | null {
  * Fetch the ESPN FIFA World Cup scoreboard and sync the 'worldcup' Team rows. Columns
  * are remapped per the payout config in lib/tournament.ts (NCAA column → WC round):
  *  - groupWins    : number of group-stage matches won (0–6)
- *  - round64      : won a Round of 32 match  (payout bucket "Round of 32")
- *  - round32      : won a Round of 16 match  (payout bucket "Round of 16")
- *  - sweet16      : won a Quarterfinal match (payout bucket "Quarterfinal")
- *  - elite8       : won a Semifinal match    (payout bucket "Semifinal")
- *  - championship : won the Final            (payout bucket "Final", = champion)
+ *  - round64      : won a Round of 32 match  (payout bucket "Round of 32 Win")
+ *  - round32      : won a Round of 16 match  (payout bucket "Round of 16 Win")
+ *  - sweet16      : won a Quarterfinal match (payout bucket "Quarterfinal Win")
+ *  - elite8       : won a Semifinal match    (payout bucket "Semifinal Win")
+ *  - championship : won the Final            (payout bucket "Final Win", = champion)
  *  - worstGd      : the single team with the worst (lowest) goal differential across all
- *                   completed matches (payout bucket "Worst GD" booby prize)
+ *                   completed matches (payout bucket "Worst Goal Diff" booby prize)
  *  - biggestUpset : the single team that pulled off the biggest FIFA-ranking upset in one
  *                   completed match (payout bucket "Biggest Upset")
  *  - final4       : unused for the World Cup (left false).
  *
  * The 2026 World Cup is a 48-team field whose knockout is R32 → R16 → QF → SF → Final
- * (5 rounds), and every one of those is an individually paid bucket, so each boolean is
- * set when a team WINS a match in that round (Round-of-32 wins now pay, unlike before).
+ * (5 rounds), each an individually paid bucket. Knockout buckets pay for WINNING a match
+ * in that round, so each boolean is set on the match winner only. Group stage is also
+ * win-based (groupWins).
  *
  * Biggest upset: for every completed match where both teams have a known FIFA ranking
  * (see lib/tournament.ts fifaRank), the magnitude is (winner's rank number − loser's rank
@@ -419,13 +420,13 @@ export async function runWorldCupImport(year: number): Promise<TournamentImportR
   }
 
   // Round slug → which boolean column a WIN in that round sets (per lib/tournament.ts).
-  // 2026 knockout is R32 → R16 → QF → SF → Final, all individually paid.
+  // 2026 knockout is R32 → R16 → QF → SF → Final, all individually paid on a win.
   const ROUND_FIELD: Record<string, 'round64' | 'round32' | 'sweet16' | 'elite8' | 'championship'> = {
-    'round-of-32': 'round64', // payout bucket "Round of 32"
-    'round-of-16': 'round32', // payout bucket "Round of 16"
-    quarterfinals: 'sweet16', // payout bucket "Quarterfinal"
-    semifinals: 'elite8', // payout bucket "Semifinal"
-    final: 'championship' // payout bucket "Final" (= champion)
+    'round-of-32': 'round64', // payout bucket "Round of 32 Win"
+    'round-of-16': 'round32', // payout bucket "Round of 16 Win"
+    quarterfinals: 'sweet16', // payout bucket "Quarterfinal Win"
+    semifinals: 'elite8', // payout bucket "Semifinal Win"
+    final: 'championship' // payout bucket "Final Win" (= champion)
   }
 
   // FIFA rankings of OUR seeded teams, keyed by normalized name so ESPN feed names
@@ -531,7 +532,7 @@ export async function runWorldCupImport(year: number): Promise<TournamentImportR
       continue
     }
 
-    // Knockout rounds: R32 / R16 / QF / SF / Final all credit the match winner.
+    // Knockout rounds: R32 / R16 / QF / SF / Final each credit the MATCH WINNER only.
     const field = slug ? ROUND_FIELD[slug] : undefined
     if (!field) continue
     const winnerComp = c0.winner ? c0 : c1.winner ? c1 : null

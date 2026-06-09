@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { fifaRank } from '@/lib/tournament'
 
 const NCAA_API_BASE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball'
 // ESPN's public, key-less soccer API. The FIFA World Cup league slug is `fifa.world`
@@ -344,20 +345,28 @@ function parseScore(raw: unknown): number | null {
 }
 
 /**
- * Fetch the ESPN FIFA World Cup scoreboard and sync the 'worldcup' Team rows:
- *  - groupWins   : number of group-stage matches won (0–3)
- *  - round64     : won a Round of 16 match   (payout bucket "Round of 16")
- *  - round32     : won a Quarterfinal match  (payout bucket "Round of 8")
- *  - sweet16     : won a Semifinal match     (payout bucket "Final Four")
- *  - elite8      : won the Final             (payout bucket "Championship")
- *  - worstGd     : the single team with the worst goal differential across all
- *                  completed matches (payout bucket "Worst GD" booby prize)
+ * Fetch the ESPN FIFA World Cup scoreboard and sync the 'worldcup' Team rows. Columns
+ * are remapped per the payout config in lib/tournament.ts (NCAA column → WC round):
+ *  - groupWins    : number of group-stage matches won (0–6)
+ *  - round64      : won a Round of 32 match  (payout bucket "Round of 32")
+ *  - round32      : won a Round of 16 match  (payout bucket "Round of 16")
+ *  - sweet16      : won a Quarterfinal match (payout bucket "Quarterfinal")
+ *  - elite8       : won a Semifinal match    (payout bucket "Semifinal")
+ *  - championship : won the Final            (payout bucket "Final", = champion)
+ *  - worstGd      : the single team with the worst (lowest) goal differential across all
+ *                   completed matches (payout bucket "Worst GD" booby prize)
+ *  - biggestUpset : the single team that pulled off the biggest FIFA-ranking upset in one
+ *                   completed match (payout bucket "Biggest Upset")
+ *  - final4       : unused for the World Cup (left false).
  *
- * The 2026 World Cup is a 48-team field with a Round of 32 before the Round of 16.
- * The payout config (lib/tournament.ts) has no Round-of-32 bucket and its knockout
- * `winners` counts (8/4/2/1) equal the match-winners of R16/QF/SF/Final, so each
- * boolean is set when a team WINS a match in that round. Round-of-32 wins
- * (advancing to the R16) are not an individually paid bucket, matching the config.
+ * The 2026 World Cup is a 48-team field whose knockout is R32 → R16 → QF → SF → Final
+ * (5 rounds), and every one of those is an individually paid bucket, so each boolean is
+ * set when a team WINS a match in that round (Round-of-32 wins now pay, unlike before).
+ *
+ * Biggest upset: for every completed match where both teams have a known FIFA ranking
+ * (see lib/tournament.ts fifaRank), the magnitude is (winner's rank number − loser's rank
+ * number); it only counts when the winner is the worse-ranked (numerically larger) team.
+ * The match with the largest positive magnitude wins the bucket for its victor.
  *
  * Does not touch the DB when ESPN returns no completed matches (avoids clearing
  * standings before kickoff), and never reads/writes March Madness rows.
@@ -410,12 +419,29 @@ export async function runWorldCupImport(year: number): Promise<TournamentImportR
   }
 
   // Round slug → which boolean column a WIN in that round sets (per lib/tournament.ts).
-  const ROUND_FIELD: Record<string, 'round64' | 'round32' | 'sweet16' | 'elite8'> = {
-    'round-of-16': 'round64', // payout bucket "Round of 16"
-    quarterfinals: 'round32', // payout bucket "Round of 8"
-    semifinals: 'sweet16', // payout bucket "Final Four"
-    final: 'elite8' // payout bucket "Championship"
+  // 2026 knockout is R32 → R16 → QF → SF → Final, all individually paid.
+  const ROUND_FIELD: Record<string, 'round64' | 'round32' | 'sweet16' | 'elite8' | 'championship'> = {
+    'round-of-32': 'round64', // payout bucket "Round of 32"
+    'round-of-16': 'round32', // payout bucket "Round of 16"
+    quarterfinals: 'sweet16', // payout bucket "Quarterfinal"
+    semifinals: 'elite8', // payout bucket "Semifinal"
+    final: 'championship' // payout bucket "Final" (= champion)
   }
+
+  // FIFA rankings of OUR seeded teams, keyed by normalized name so ESPN feed names
+  // (variants/diacritics) match the same way groupWins etc. are matched. Only teams we
+  // both seed AND have a ranking for participate in the biggest-upset computation, which
+  // also guarantees the prize lands on an auctioned team.
+  const wcTeams = await prisma.team.findMany({ where: { tournament: WORLD_CUP_TOURNAMENT } })
+  const rankByKey = new Map<string, number>()
+  for (const t of wcTeams) {
+    const r = fifaRank(t.name)
+    if (typeof r === 'number') rankByKey.set(normalizeCountry(t.name), r)
+  }
+
+  // Track the single biggest FIFA-ranking upset across all completed matches.
+  let upsetWinnerKey: string | null = null
+  let upsetMagnitude = 0
 
   // Accumulate per ESPN team (keyed by normalized name).
   type Agg = {
@@ -425,6 +451,7 @@ export async function runWorldCupImport(year: number): Promise<TournamentImportR
     round32: boolean
     sweet16: boolean
     elite8: boolean
+    championship: boolean
     goalsFor: number
     goalsAgainst: number
     playedAny: boolean
@@ -441,6 +468,7 @@ export async function runWorldCupImport(year: number): Promise<TournamentImportR
         round32: false,
         sweet16: false,
         elite8: false,
+        championship: false,
         goalsFor: 0,
         goalsAgainst: 0,
         playedAny: false
@@ -478,6 +506,24 @@ export async function runWorldCupImport(year: number): Promise<TournamentImportR
       a1.goalsAgainst += s0
     }
 
+    // Biggest-upset check runs on EVERY completed match (group + knockout) that has a
+    // winner and where both teams have a known FIFA ranking. magnitude = winnerRank −
+    // loserRank, only counted when the winner is the worse-ranked (larger rank number).
+    const key0 = normalizeCountry(name0)
+    const key1 = normalizeCountry(name1)
+    const rank0 = rankByKey.get(key0)
+    const rank1 = rankByKey.get(key1)
+    const upsetWinnerKeyThis = c0.winner ? key0 : c1.winner ? key1 : null
+    if (upsetWinnerKeyThis && rank0 != null && rank1 != null) {
+      const winnerRank = upsetWinnerKeyThis === key0 ? rank0 : rank1
+      const loserRank = upsetWinnerKeyThis === key0 ? rank1 : rank0
+      const magnitude = winnerRank - loserRank
+      if (magnitude > upsetMagnitude) {
+        upsetMagnitude = magnitude
+        upsetWinnerKey = upsetWinnerKeyThis
+      }
+    }
+
     if (slug === 'group-stage') {
       // ESPN sets winner=true on the victor; draws leave both false.
       if (c0.winner) a0.groupWins++
@@ -485,20 +531,21 @@ export async function runWorldCupImport(year: number): Promise<TournamentImportR
       continue
     }
 
-    // Knockout rounds (round-of-32 has no payout bucket and is intentionally skipped).
+    // Knockout rounds: R32 / R16 / QF / SF / Final all credit the match winner.
     const field = slug ? ROUND_FIELD[slug] : undefined
     if (!field) continue
     const winnerComp = c0.winner ? c0 : c1.winner ? c1 : null
     if (!winnerComp) continue
     const winnerAgg = winnerComp === c0 ? a0 : a1
     winnerAgg[field] = true
-    if (field === 'elite8') {
+    if (field === 'championship') {
       championName = winnerComp.team?.displayName || winnerComp.team?.shortDisplayName || ''
     }
   }
 
-  // Apply to DB — scoped to World Cup rows ONLY.
-  const teams = await prisma.team.findMany({ where: { tournament: WORLD_CUP_TOURNAMENT } })
+  // Apply to DB — scoped to World Cup rows ONLY. Reuse the rows fetched above (they're
+  // unchanged so far; only result columns are written below).
+  const teams = wcTeams
 
   // Worst goal differential booby prize: the single tracked (seeded) team with ≥1
   // completed match whose (goalsFor − goalsAgainst) is the lowest. Restricted to our
@@ -526,7 +573,8 @@ export async function runWorldCupImport(year: number): Promise<TournamentImportR
       elite8: false,
       final4: false,
       championship: false,
-      worstGd: false
+      worstGd: false,
+      biggestUpset: false
     }
   })
 
@@ -534,9 +582,11 @@ export async function runWorldCupImport(year: number): Promise<TournamentImportR
   const updates: string[] = []
 
   for (const team of teams) {
-    const a = agg.get(normalizeCountry(team.name))
+    const key = normalizeCountry(team.name)
+    const a = agg.get(key)
     if (!a) continue
-    const isWorst = worstKey === normalizeCountry(team.name)
+    const isWorst = worstKey === key
+    const isUpset = upsetWinnerKey === key
     await prisma.team.update({
       where: { id: team.id },
       data: {
@@ -545,17 +595,21 @@ export async function runWorldCupImport(year: number): Promise<TournamentImportR
         round32: a.round32,
         sweet16: a.sweet16,
         elite8: a.elite8,
-        worstGd: isWorst
+        championship: a.championship,
+        worstGd: isWorst,
+        biggestUpset: isUpset
       }
     })
     updatedTeams++
     const parts: string[] = []
     if (a.groupWins) parts.push(`${a.groupWins} group win${a.groupWins !== 1 ? 's' : ''}`)
-    if (a.round64) parts.push('R16')
-    if (a.round32) parts.push('R8')
-    if (a.sweet16) parts.push('FinalFour')
-    if (a.elite8) parts.push('Champion')
+    if (a.round64) parts.push('R32')
+    if (a.round32) parts.push('R16')
+    if (a.sweet16) parts.push('QF')
+    if (a.elite8) parts.push('SF')
+    if (a.championship) parts.push('Champion')
     if (isWorst) parts.push('worstGD')
+    if (isUpset) parts.push(`biggestUpset(+${upsetMagnitude})`)
     if (parts.length) updates.push(`${team.name}: ${parts.join(', ')}`)
   }
 

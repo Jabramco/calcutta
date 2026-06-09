@@ -31,6 +31,7 @@ export async function POST() {
         championship: false,
         groupWins: 0,
         worstGd: false,
+        biggestUpset: false,
       }
     })
     await prisma.owner.deleteMany({ where: { tournament } })

@@ -58,9 +58,15 @@ export default function TeamsPage() {
   }, {} as Record<string, TeamWithOwner[]>)
 
   const downloadCSV = () => {
-    // Create CSV header
-    const headers = ['Region', 'Seed', 'Team', 'Owner', 'Cost', 'Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8', 'Final 4', 'Championship']
-    
+    // Result columns are tournament-aware: March Madness keeps its NCAA columns verbatim,
+    // while the World Cup exports its own payout-bucket columns (group stage, knockout
+    // rounds, biggest upset, worst GD) driven by the shared payout config.
+    const baseHeaders = ['Region', 'Seed', 'Team', 'Owner', 'Cost']
+    const roundCols = isWorldCup ? config.payoutRounds : null
+    const headers = roundCols
+      ? [...baseHeaders, ...roundCols.map(r => r.label)]
+      : [...baseHeaders, 'Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8', 'Final 4', 'Championship']
+
     // Create CSV rows
     const rows = teams
       .sort((a, b) => {
@@ -69,19 +75,33 @@ export default function TeamsPage() {
         if (regionOrder !== 0) return regionOrder
         return a.seed - b.seed
       })
-      .map(team => [
-        team.region,
-        team.seed,
-        team.name,
-        team.owner?.name || 'Unassigned',
-        team.cost,
-        team.round64 ? 'Yes' : 'No',
-        team.round32 ? 'Yes' : 'No',
-        team.sweet16 ? 'Yes' : 'No',
-        team.elite8 ? 'Yes' : 'No',
-        team.final4 ? 'Yes' : 'No',
-        team.championship ? 'Yes' : 'No'
-      ])
+      .map(team => {
+        const base = [
+          team.region,
+          team.seed,
+          team.name,
+          team.owner?.name || 'Unassigned',
+          team.cost
+        ]
+        if (roundCols) {
+          return [
+            ...base,
+            ...roundCols.map(r => {
+              const value = (team as unknown as Record<string, unknown>)[r.field]
+              return r.fieldType === 'count' ? Number(value ?? 0) : value ? 'Yes' : 'No'
+            })
+          ]
+        }
+        return [
+          ...base,
+          team.round64 ? 'Yes' : 'No',
+          team.round32 ? 'Yes' : 'No',
+          team.sweet16 ? 'Yes' : 'No',
+          team.elite8 ? 'Yes' : 'No',
+          team.final4 ? 'Yes' : 'No',
+          team.championship ? 'Yes' : 'No'
+        ]
+      })
 
     // Combine headers and rows
     const csvContent = [

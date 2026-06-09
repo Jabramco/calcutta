@@ -45,16 +45,19 @@ model Team {
   cost          Float  @default(0)
   // Knockout-round wins. Shared columns; meaning is parameterized per tournament
   // (see lib/tournament.ts payoutRounds field mapping). March Madness: R64→Championship.
-  // World Cup: round64=Round of 16, round32=Round of 8, sweet16=Final Four, elite8=Championship.
+  // World Cup: round64=Round of 32, round32=Round of 16, sweet16=Quarterfinal,
+  // elite8=Semifinal, championship=Final win; final4 is unused for the World Cup.
   round64       Boolean  @default(false)
   round32       Boolean  @default(false)
   sweet16       Boolean  @default(false)
   elite8        Boolean  @default(false)
   final4        Boolean  @default(false)
   championship  Boolean  @default(false)
-  // World Cup only: number of group-stage match wins (0–3) and "worst goal differential" booby prize.
+  // World Cup only: number of group-stage match wins (0–3), the "worst goal differential"
+  // booby prize, and the "biggest upset by FIFA ranking" prize (single team each).
   groupWins     Int      @default(0)
   worstGd       Boolean  @default(false)
+  biggestUpset  Boolean  @default(false)
   isDogs        Boolean  @default(false)   // true = "Dogs {region}" aggregate (seeds 14–16)
   dogTeamId     Int?                       // if set, this team is seed 14/15/16 and belongs to Dogs team
   dogTeam       Team?    @relation("DogMembers", fields: [dogTeamId], references: [id])

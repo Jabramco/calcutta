@@ -7,7 +7,7 @@ import type { Team } from '@prisma/client'
 import { OwnerWithTeams } from '@/lib/types'
 import { formatCurrency, formatROI, calculateTeamPayout, calculateTotalPot } from '@/lib/calculations'
 import { isTeamEliminated } from '@/lib/tournamentElimination'
-import { teamFlag } from '@/lib/tournament'
+import { teamFlag, getRoundsWon } from '@/lib/tournament'
 
 export default function OwnerPage() {
   const params = useParams()
@@ -125,13 +125,7 @@ export default function OwnerPage() {
               </thead>
               <tbody className="divide-y divide-[#2a2a38]">
                 {owner.teams.map(team => {
-                  const roundsWon = []
-                  if (team.round64) roundsWon.push('R64')
-                  if (team.round32) roundsWon.push('R32')
-                  if (team.sweet16) roundsWon.push('S16')
-                  if (team.elite8) roundsWon.push('E8')
-                  if (team.final4) roundsWon.push('F4')
-                  if (team.championship) roundsWon.push('CHAMP')
+                  const roundsWon = getRoundsWon(team, team.tournament)
 
                   const teamPayout = calculateTeamPayout(team, totalPot)
                   const eliminated = poolTeams.length > 0 && isTeamEliminated(team, poolTeams)
@@ -164,9 +158,9 @@ export default function OwnerPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         {roundsWon.length > 0 ? (
                           <div className="flex gap-1">
-                            {roundsWon.map((round, i) => (
-                              <span key={i} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-[#2dce89]/20 text-[#2dce89]">
-                                {round}
+                            {roundsWon.map((round) => (
+                              <span key={round.key} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-[#2dce89]/20 text-[#2dce89]">
+                                {round.label}
                               </span>
                             ))}
                           </div>

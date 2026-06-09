@@ -23,7 +23,8 @@ export function isTournamentKey(value: unknown): value is TournamentKey {
 }
 
 /** Which `Team` column a payout round reads. The 6 NCAA boolean columns are reused
- *  (remapped) for the World Cup knockout rounds; `groupWins`/`worstGd` are World-Cup only. */
+ *  (remapped) for the World Cup knockout rounds; `groupWins`/`worstGd`/`biggestUpset`
+ *  are World-Cup only. */
 export type TeamResultField =
   | 'round64'
   | 'round32'
@@ -33,6 +34,7 @@ export type TeamResultField =
   | 'championship'
   | 'groupWins'
   | 'worstGd'
+  | 'biggestUpset'
 
 export interface PayoutRound {
   /** Stable identifier for this payout bucket. */
@@ -45,6 +47,10 @@ export interface PayoutRound {
   label: string
   /** Short label (auction sidebar payout panel). */
   shortLabel: string
+  /** Badge label for the per-team "Rounds Won" column (owner detail + Teams CSV). Kept
+   *  separate from `shortLabel` so March Madness badges (R64/CHAMP) stay verbatim while the
+   *  auction sidebar can use its own short forms. */
+  wonLabel: string
   /** Fraction of the pot this bucket pays out in total. Drives the dollar amounts. */
   pctOfPot: number
   /** Display string for the "% of total" column (may differ from `pctOfPot`; see flag below). */
@@ -86,12 +92,12 @@ const MARCH_MADNESS: TournamentConfig = {
   auctionableCount: 56,
   // Mirrors the original PAYOUT_PERCENTAGES / WINNERS_PER_ROUND in lib/calculations.ts.
   payoutRounds: [
-    { key: 'round64', field: 'round64', fieldType: 'boolean', label: 'Round of 64', shortLabel: '64', pctOfPot: 0.16, pctLabel: '16%', winners: 32 },
-    { key: 'round32', field: 'round32', fieldType: 'boolean', label: 'Round of 32', shortLabel: '32', pctOfPot: 0.16, pctLabel: '16%', winners: 16 },
-    { key: 'sweet16', field: 'sweet16', fieldType: 'boolean', label: 'Sweet 16', shortLabel: 'S16', pctOfPot: 0.24, pctLabel: '24%', winners: 8 },
-    { key: 'elite8', field: 'elite8', fieldType: 'boolean', label: 'Elite 8', shortLabel: 'E8', pctOfPot: 0.16, pctLabel: '16%', winners: 4 },
-    { key: 'final4', field: 'final4', fieldType: 'boolean', label: 'Final Four', shortLabel: 'F4', pctOfPot: 0.16, pctLabel: '16%', winners: 2 },
-    { key: 'championship', field: 'championship', fieldType: 'boolean', label: 'Championship', shortLabel: 'Champ', pctOfPot: 0.12, pctLabel: '12%', winners: 1 }
+    { key: 'round64', field: 'round64', fieldType: 'boolean', label: 'Round of 64', shortLabel: '64', wonLabel: 'R64', pctOfPot: 0.16, pctLabel: '16%', winners: 32 },
+    { key: 'round32', field: 'round32', fieldType: 'boolean', label: 'Round of 32', shortLabel: '32', wonLabel: 'R32', pctOfPot: 0.16, pctLabel: '16%', winners: 16 },
+    { key: 'sweet16', field: 'sweet16', fieldType: 'boolean', label: 'Sweet 16', shortLabel: 'S16', wonLabel: 'S16', pctOfPot: 0.24, pctLabel: '24%', winners: 8 },
+    { key: 'elite8', field: 'elite8', fieldType: 'boolean', label: 'Elite 8', shortLabel: 'E8', wonLabel: 'E8', pctOfPot: 0.16, pctLabel: '16%', winners: 4 },
+    { key: 'final4', field: 'final4', fieldType: 'boolean', label: 'Final Four', shortLabel: 'F4', wonLabel: 'F4', pctOfPot: 0.16, pctLabel: '16%', winners: 2 },
+    { key: 'championship', field: 'championship', fieldType: 'boolean', label: 'Championship', shortLabel: 'Champ', wonLabel: 'CHAMP', pctOfPot: 0.12, pctLabel: '12%', winners: 1 }
   ]
 }
 
@@ -103,27 +109,44 @@ const WORLD_CUP: TournamentConfig = {
   seedNoun: 'Team',
   regionLabelStyle: 'prefix',
   groups: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'],
-  spendCap: 250,
+  spendCap: 300,
   // 12 groups × 4 teams = 48 auctionable items.
   auctionableCount: 48,
   // Percentages are the source of truth and sum to exactly 100% of the pot. All dollar
   // amounts are DERIVED from the live pot at render/calc time (see buildPayoutLines /
-  // calculateTeamPayout), so they show $0 until winning bids build the pot up. The
-  // $1,027 figure on the source image was only an illustrative pot, never hardcoded.
-  //   Group Stage: 22% across 36 group matches  (e.g. $1,027 → $6.28 / win, $225.94 bucket)
-  //   Round of 16: 16% / 8 winners (2% each)    (e.g. $1,027 → $20.54 / win)
-  //   Round of 8:  16% / 4 winners (4% each)    (e.g. $1,027 → $41.08 / win)
-  //   Final Four:  16% / 2 winners (8% each)    (e.g. $1,027 → $82.16 / win)
-  //   Championship: 25% / 1 winner              (e.g. $1,027 → $256.75)
-  //   Worst GD:    5% / 1                        (e.g. $1,027 → $51.35)
-  //   Total: 22 + 16 + 16 + 16 + 25 + 5 = 100%.
+  // calculateTeamPayout), so they show $0 until winning bids build the pot up.
+  //
+  // 2026 format is a 48-team field: 12 groups of 4 → 72 group matches, then a 32-team
+  // knockout bracket: Round of 32 → Round of 16 → Quarterfinal → Semifinal → Final.
+  //
+  // Team result columns reused for the World Cup knockout (NCAA column → WC round):
+  //   round64  → Round of 32 win   (16 winners)
+  //   round32  → Round of 16 win   (8 winners)
+  //   sweet16  → Quarterfinal win  (4 winners)
+  //   elite8   → Semifinal win     (2 winners)
+  //   championship → Final win     (1 winner, = champion)
+  //   final4   → UNUSED for the World Cup
+  //   groupWins (count) → group-stage wins; worstGd / biggestUpset → World-Cup-only booleans.
+  //
+  // Buckets (e.g. at a $1,000 pot) — all six win rounds pay an equal 15%:
+  //   Group Stage:   15% / 72 group wins (≈$2.08/win, $150 bucket — nominal, ignores draws)
+  //   Round of 32:   15% / 16 winners    ($9.375/win, $150 bucket)
+  //   Round of 16:   15% / 8 winners     ($18.75/win, $150 bucket)
+  //   Quarterfinal:  15% / 4 winners     ($37.50/win, $150 bucket)
+  //   Semifinal:     15% / 2 winners     ($75.00/win, $150 bucket)
+  //   Final:         15% / 1 winner      ($150.00,    $150 bucket)
+  //   Biggest Upset:  5% / 1             ($50.00,     $50 bucket)
+  //   Worst GD:       5% / 1             ($50.00,     $50 bucket)
+  //   Total: 15 + 15 + 15 + 15 + 15 + 15 + 5 + 5 = 100%.
   payoutRounds: [
-    { key: 'groupStage', field: 'groupWins', fieldType: 'count', label: 'Group Stage Win', shortLabel: 'Group', pctOfPot: 0.22, pctLabel: '22%', winners: 36 },
-    { key: 'round16', field: 'round64', fieldType: 'boolean', label: 'Round of 16', shortLabel: 'R16', pctOfPot: 0.16, pctLabel: '16%', winners: 8 },
-    { key: 'round8', field: 'round32', fieldType: 'boolean', label: 'Round of 8', shortLabel: 'R8', pctOfPot: 0.16, pctLabel: '16%', winners: 4 },
-    { key: 'finalFour', field: 'sweet16', fieldType: 'boolean', label: 'Final Four', shortLabel: 'FF', pctOfPot: 0.16, pctLabel: '16%', winners: 2 },
-    { key: 'championship', field: 'elite8', fieldType: 'boolean', label: 'Championship', shortLabel: 'Champ', pctOfPot: 0.25, pctLabel: '25%', winners: 1 },
-    { key: 'worstGd', field: 'worstGd', fieldType: 'boolean', label: 'Worst GD', shortLabel: 'GD', pctOfPot: 0.05, pctLabel: '5%', winners: 1 }
+    { key: 'groupStage', field: 'groupWins', fieldType: 'count', label: 'Group Stage Win', shortLabel: 'Group', wonLabel: 'Group', pctOfPot: 0.15, pctLabel: '15%', winners: 72 },
+    { key: 'round32', field: 'round64', fieldType: 'boolean', label: 'Round of 32', shortLabel: 'R32', wonLabel: 'R32', pctOfPot: 0.15, pctLabel: '15%', winners: 16 },
+    { key: 'round16', field: 'round32', fieldType: 'boolean', label: 'Round of 16', shortLabel: 'R16', wonLabel: 'R16', pctOfPot: 0.15, pctLabel: '15%', winners: 8 },
+    { key: 'quarterfinal', field: 'sweet16', fieldType: 'boolean', label: 'Quarterfinal', shortLabel: 'QF', wonLabel: 'QF', pctOfPot: 0.15, pctLabel: '15%', winners: 4 },
+    { key: 'semifinal', field: 'elite8', fieldType: 'boolean', label: 'Semifinal', shortLabel: 'SF', wonLabel: 'SF', pctOfPot: 0.15, pctLabel: '15%', winners: 2 },
+    { key: 'final', field: 'championship', fieldType: 'boolean', label: 'Final', shortLabel: 'Final', wonLabel: 'Final', pctOfPot: 0.15, pctLabel: '15%', winners: 1 },
+    { key: 'biggestUpset', field: 'biggestUpset', fieldType: 'boolean', label: 'Biggest Upset', shortLabel: 'Upset', wonLabel: 'Upset', pctOfPot: 0.05, pctLabel: '5%', winners: 1 },
+    { key: 'worstGd', field: 'worstGd', fieldType: 'boolean', label: 'Worst GD', shortLabel: 'GD', wonLabel: 'GD', pctOfPot: 0.05, pctLabel: '5%', winners: 1 }
   ]
 }
 
@@ -199,6 +222,36 @@ export function buildPayoutLines(totalPot: number, tournament: TournamentKey): P
   }))
 }
 
+export interface RoundWonBadge {
+  key: string
+  label: string
+}
+
+/**
+ * The "Rounds Won" badges for a single team, in config order. Tournament-aware and driven
+ * entirely by the payout config (no hardcoded round strings), so March Madness shows its
+ * NCAA labels (R64…CHAMP) verbatim while the World Cup shows its own round labels
+ * (Group, R32, R16, QF, SF, Final, Upset, GD). `count` buckets (WC group stage) render a
+ * single badge annotated with the number of wins, e.g. "Group ×2".
+ */
+export function getRoundsWon(
+  team: Record<string, unknown> & { tournament?: unknown },
+  tournament?: unknown
+): RoundWonBadge[] {
+  const config = resolveConfig(tournament ?? team.tournament)
+  const badges: RoundWonBadge[] = []
+  for (const round of config.payoutRounds) {
+    const value = team[round.field]
+    if (round.fieldType === 'count') {
+      const n = Number(value ?? 0)
+      if (n > 0) badges.push({ key: round.key, label: n > 1 ? `${round.wonLabel} ×${n}` : round.wonLabel })
+    } else if (value) {
+      badges.push({ key: round.key, label: round.wonLabel })
+    }
+  }
+  return badges
+}
+
 /**
  * World Cup country flags.
  *
@@ -269,4 +322,52 @@ export function teamFlag(name: string, tournament?: unknown): string {
   if (tournament !== undefined && tournament !== 'worldcup') return ''
   const code = WORLD_CUP_COUNTRY_CODES[name]
   return code ? flagEmojiFromCode(code) : ''
+}
+
+/**
+ * FIFA/Coca-Cola Men's World Ranking for the 48 World Cup teams, used to compute the
+ * "Biggest Upset" payout bucket (the completed game with the largest ranking gap won by
+ * the lower-ranked / numerically-larger-rank team).
+ *
+ * SOURCE: ESPN "FIFA Men's Top 50 World Rankings" — last official update 1 April 2026
+ * (top 50 + the "honorable mentions" list of qualified teams ranked outside the top 50).
+ * The next official FIFA update was scheduled for ~9–11 June 2026 (just before kickoff),
+ * so THESE VALUES MAY NEED UPDATING once that release lands — they are a static snapshot,
+ * not a live feed. Keys match the seeded Team names verbatim (see seedWorldCup.ts).
+ *
+ * Stored as a static map (mirroring WORLD_CUP_COUNTRY_CODES above) rather than a DB column:
+ * it's lower-friction (no schema change / reseed), co-located with the rest of the WC
+ * config, and the team names are a stable key. The ESPN soccer scoreboard feed does not
+ * expose a usable FIFA ranking per competitor, so a static map is the cleanest source.
+ */
+const WORLD_CUP_FIFA_RANKS: Record<string, number> = {
+  // Group A
+  Mexico: 15, 'South Africa': 60, 'South Korea': 25, Czechia: 41,
+  // Group B
+  Canada: 30, 'Bosnia and Herzegovina': 65, Qatar: 55, Switzerland: 19,
+  // Group C
+  Brazil: 6, Morocco: 8, Haiti: 83, Scotland: 43,
+  // Group D
+  'United States': 16, Paraguay: 40, Australia: 27, 'Türkiye': 22,
+  // Group E
+  Germany: 10, 'Curaçao': 82, 'Ivory Coast': 34, Ecuador: 23,
+  // Group F
+  Netherlands: 7, Japan: 18, Sweden: 38, Tunisia: 44,
+  // Group G
+  Belgium: 9, Egypt: 29, Iran: 21, 'New Zealand': 85,
+  // Group H
+  Spain: 2, 'Cape Verde': 69, 'Saudi Arabia': 61, Uruguay: 17,
+  // Group I
+  France: 1, Senegal: 14, Iraq: 57, Norway: 31,
+  // Group J
+  Argentina: 3, Algeria: 28, Austria: 24, Jordan: 63,
+  // Group K
+  Portugal: 5, 'DR Congo': 46, Uzbekistan: 50, Colombia: 13,
+  // Group L
+  England: 4, Croatia: 11, Ghana: 74, Panama: 33
+}
+
+/** FIFA world ranking (1 = best) for a World Cup team name, or `undefined` if unknown. */
+export function fifaRank(name: string): number | undefined {
+  return WORLD_CUP_FIFA_RANKS[name]
 }

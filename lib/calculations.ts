@@ -69,6 +69,7 @@ type PayoutTeam = Partial<
     | 'championship'
     | 'groupWins'
     | 'worstGd'
+    | 'biggestUpset'
   >
 >
 

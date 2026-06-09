@@ -49,7 +49,8 @@ export async function POST(request: Request) {
 export async function DELETE() {
   try {
     // Reset only the active experience's result columns. World Cup additionally
-    // clears its soccer-only fields (groupWins / worstGd); March Madness ignores them.
+    // clears its soccer-only fields (groupWins / worstGd / biggestUpset); March
+    // Madness ignores them.
     const tournament = await getCurrentTournament()
     await prisma.team.updateMany({
       where: { tournament },
@@ -61,7 +62,8 @@ export async function DELETE() {
         final4: false,
         championship: false,
         groupWins: 0,
-        worstGd: false
+        worstGd: false,
+        biggestUpset: false
       }
     })
 

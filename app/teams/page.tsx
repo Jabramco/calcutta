@@ -6,8 +6,12 @@ import { useAuth } from '@/lib/hooks/useAuth'
 import { RegionalTeamsBracket } from '@/components/teams/RegionalTeamsBracket'
 import { FullTournamentBracket } from '@/components/teams/FullTournamentBracket'
 import { GroupedTeamsView } from '@/components/teams/GroupedTeamsView'
+import { OwnersTeamsView } from '@/components/teams/OwnersTeamsView'
 import { useMode } from '@/components/ModeContext'
 import { getTournamentConfig } from '@/lib/tournament'
+
+/** Top-level Teams page view: by group/region ("groups") or by auction owner ("owners"). */
+type TeamsView = 'groups' | 'owners'
 
 /** Year passed to ESPN bracket import (admin “Import results”). */
 const TOURNAMENT_IMPORT_YEAR = 2026
@@ -22,6 +26,7 @@ export default function TeamsPage() {
   const [importing, setImporting] = useState(false)
   const [importMessage, setImportMessage] = useState('')
   const [bracketLayout, setBracketLayout] = useState<'regional' | 'full'>('full')
+  const [view, setView] = useState<TeamsView>('groups')
 
   useEffect(() => {
     async function fetchData() {
@@ -172,7 +177,37 @@ export default function TeamsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <h1 className="text-3xl font-bold text-white">Teams</h1>
         <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-center">
-          {!isWorldCup && (
+          <div
+            className="inline-flex rounded-lg border border-[#2a2a38] bg-[#1c1c28]/80 p-0.5"
+            role="group"
+            aria-label="Group teams by"
+          >
+            <button
+              type="button"
+              onClick={() => setView('groups')}
+              aria-pressed={view === 'groups'}
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                view === 'groups'
+                  ? 'bg-[#00ceb8]/20 text-[#00ceb8]'
+                  : 'text-[#a0a0b8] hover:text-white'
+              }`}
+            >
+              Groups
+            </button>
+            <button
+              type="button"
+              onClick={() => setView('owners')}
+              aria-pressed={view === 'owners'}
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                view === 'owners'
+                  ? 'bg-[#00ceb8]/20 text-[#00ceb8]'
+                  : 'text-[#a0a0b8] hover:text-white'
+              }`}
+            >
+              Owners
+            </button>
+          </div>
+          {!isWorldCup && view === 'groups' && (
             <div
               className="inline-flex rounded-lg border border-[#2a2a38] bg-[#1c1c28]/80 p-0.5"
               role="group"
@@ -246,7 +281,9 @@ export default function TeamsPage() {
         </div>
       )}
 
-      {isWorldCup ? (
+      {view === 'owners' ? (
+        <OwnersTeamsView teams={teams} config={config} />
+      ) : isWorldCup ? (
         <GroupedTeamsView
           groups={config.groups}
           teamsByGroup={teamsByRegion}

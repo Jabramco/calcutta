@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { useRouter } from 'next/navigation'
-import { Avatar } from '@/components/Avatar'
+import { Avatar, avatarSrcForName } from '@/components/Avatar'
 
 interface User {
   id: number
@@ -192,7 +192,7 @@ export default function AdminPage() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
                   <span className="inline-flex items-center gap-2">
-                    <Avatar alt={u.username} size={24} />
+                    <Avatar src={avatarSrcForName(u.username)} alt={u.username} size={24} />
                     {u.username}
                     {u.username === user.username && (
                       <span className="ml-1 px-2 py-1 bg-[#00ceb8]/20 text-[#00ceb8] text-xs rounded-full font-medium">

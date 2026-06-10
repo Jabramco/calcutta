@@ -11,6 +11,25 @@ import Image from 'next/image'
  */
 const DEFAULT_AVATAR_SRC = '/avatar-test.png'
 
+/**
+ * TEMPORARY per-user avatar override (test only).
+ *
+ * Maps specific display names to a distinct image so we can exercise the Avatar `src`
+ * path before real per-user image uploads exist. Lookup is case-insensitive. Returns
+ * `undefined` for everyone else, so the Avatar falls back to the shared placeholder.
+ *
+ * This whole map (and the `src={avatarSrcForName(name)}` props at call sites) should be
+ * removed once real per-user images land — keys are kept lowercase for trivial matching.
+ */
+const TEST_AVATAR_OVERRIDES: Record<string, string> = {
+  brianglover: '/avatar-test-2.png',
+}
+
+export function avatarSrcForName(name?: string | null): string | undefined {
+  if (!name) return undefined
+  return TEST_AVATAR_OVERRIDES[name.trim().toLowerCase()]
+}
+
 interface AvatarProps {
   /** Per-user image URL. Falls back to the shared placeholder when omitted or empty. */
   src?: string | null

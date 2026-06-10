@@ -15,7 +15,7 @@ import { formatCurrency, formatROI } from '@/lib/calculations'
 import { ownerHasAliveTeamInPool } from '@/lib/tournamentElimination'
 import { LeaderboardEntry, GlobalStats, type TeamWithOwner } from '@/lib/types'
 import ModeSegmentedControl from '@/components/ModeSegmentedControl'
-import { Avatar } from '@/components/Avatar'
+import { Avatar, avatarSrcForName } from '@/components/Avatar'
 
 type UpcomingSide = {
   name: string
@@ -576,7 +576,7 @@ export default function DashboardPage() {
                           }
                         >
                           <span className="inline-flex items-center gap-1.5 min-w-0">
-                            <Avatar alt={entry.owner.name} size={20} />
+                            <Avatar src={avatarSrcForName(entry.owner.name)} alt={entry.owner.name} size={20} />
                             <span className="truncate">{entry.owner.name}</span>
                             {isGraveyard &&
                               (isRyshawnOwnerName(entry.owner.name) ? (
@@ -710,7 +710,7 @@ function TeamBlock({ side, align }: { side: UpcomingSide; align: 'left' | 'right
           className={`inline-flex items-center gap-1.5 text-sm mt-1 text-[#00ceb8] hover:underline ${align === 'right' ? 'md:flex-row-reverse' : ''} ${ownerClick ? 'cursor-pointer' : ''}`}
           disabled={!ownerClick}
         >
-          <Avatar alt={side.ownerName} size={18} />
+          <Avatar src={avatarSrcForName(side.ownerName)} alt={side.ownerName} size={18} />
           {side.ownerName}
         </button>
       ) : (

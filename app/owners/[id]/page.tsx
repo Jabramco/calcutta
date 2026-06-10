@@ -8,7 +8,7 @@ import { OwnerWithTeams } from '@/lib/types'
 import { formatCurrency, formatROI, calculateTeamPayout, calculateTotalPot } from '@/lib/calculations'
 import { isTeamEliminated } from '@/lib/tournamentElimination'
 import { teamFlag, getRoundsWon } from '@/lib/tournament'
-import { Avatar } from '@/components/Avatar'
+import { Avatar, avatarSrcForName } from '@/components/Avatar'
 
 export default function OwnerPage() {
   const params = useParams()
@@ -77,7 +77,7 @@ export default function OwnerPage() {
       </Link>
 
       <h1 className="text-3xl font-bold mb-8 text-white flex items-center gap-3">
-        <Avatar alt={owner.name} size={40} />
+        <Avatar src={avatarSrcForName(owner.name)} alt={owner.name} size={40} />
         {owner.name}
       </h1>
         

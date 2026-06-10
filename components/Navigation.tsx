@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { Avatar } from '@/components/Avatar'
 
 interface User {
   id: number
@@ -114,10 +115,11 @@ export default function Navigation() {
           <div className="hidden lg:flex items-center space-x-4">
             {loading ? null : user ? (
               <>
-                <span className="text-sm text-[#a0a0b8]">
+                <span className="inline-flex items-center gap-2 text-sm text-[#a0a0b8]">
+                  <Avatar alt={user.username} size={28} />
                   <span className="text-white font-medium">{user.username}</span>
                   {user.role === 'admin' && (
-                    <span className="ml-2 px-2 py-1 bg-[#9d4edd] text-white text-xs rounded-full font-medium">
+                    <span className="ml-1 px-2 py-1 bg-[#9d4edd] text-white text-xs rounded-full font-medium">
                       Admin
                     </span>
                   )}
@@ -189,7 +191,10 @@ export default function Navigation() {
                 {loading ? null : user ? (
                   <>
                     <div className="px-4 py-2 text-sm">
-                      <span className="text-white font-medium block">{user.username}</span>
+                      <span className="flex items-center gap-2">
+                        <Avatar alt={user.username} size={26} />
+                        <span className="text-white font-medium">{user.username}</span>
+                      </span>
                       {user.role === 'admin' && (
                         <span className="inline-block mt-2 px-2 py-1 bg-[#9d4edd] text-white text-xs rounded-full font-medium">
                           Admin

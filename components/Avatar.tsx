@@ -1,0 +1,38 @@
+import Image from 'next/image'
+
+/**
+ * Circular user/owner avatar shown to the left of a username or owner name.
+ *
+ * Phase 1 uses a single static placeholder image (`public/avatar-test.png`) for everyone.
+ * The component is intentionally built so per-user images drop in with zero call-site
+ * churn: when uploads land later, callers just pass the user's image URL via `src` and
+ * nothing else changes — `src` falls back to the shared placeholder whenever it's
+ * missing/empty.
+ */
+const DEFAULT_AVATAR_SRC = '/avatar-test.png'
+
+interface AvatarProps {
+  /** Per-user image URL. Falls back to the shared placeholder when omitted or empty. */
+  src?: string | null
+  /** Person's name — used as the accessible alt text. */
+  alt?: string
+  /** Square pixel size (width === height). Defaults to a compact inline size. */
+  size?: number
+  /** Extra classes for spacing/positioning at the call site. */
+  className?: string
+}
+
+export function Avatar({ src, alt = '', size = 26, className = '' }: AvatarProps) {
+  const resolvedSrc = src && src.trim().length > 0 ? src : DEFAULT_AVATAR_SRC
+  return (
+    <Image
+      src={resolvedSrc}
+      alt={alt}
+      width={size}
+      height={size}
+      className={`inline-block shrink-0 rounded-full object-cover ring-1 ring-[#2a2a38] bg-[#1c1c28] ${className}`}
+    />
+  )
+}
+
+export default Avatar

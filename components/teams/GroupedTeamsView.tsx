@@ -3,6 +3,7 @@
 import type { TeamWithOwner } from '@/lib/types'
 import { formatCurrency } from '@/lib/calculations'
 import { teamFlag } from '@/lib/tournament'
+import { Avatar } from '@/components/Avatar'
 
 /**
  * Group-stage standings view (World Cup). The NCAA bracket components are basketball
@@ -52,8 +53,9 @@ export function GroupedTeamsView({
                         )}
                         {team.name}
                       </div>
-                      <div className="text-xs text-[#a0a0b8] truncate">
-                        {team.owner?.name ?? 'Unowned'}
+                      <div className="flex items-center gap-1.5 text-xs text-[#a0a0b8]">
+                        {team.owner && <Avatar alt={team.owner.name} size={16} />}
+                        <span className="truncate">{team.owner?.name ?? 'Unowned'}</span>
                       </div>
                     </div>
                     <div className="text-sm tabular-nums text-[#00ceb8] font-semibold shrink-0">

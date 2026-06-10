@@ -50,14 +50,27 @@ interface AvatarProps {
 
 export function Avatar({ src, alt = '', size = 26, className = '' }: AvatarProps) {
   const resolvedSrc = src && src.trim().length > 0 ? src : DEFAULT_AVATAR_SRC
+  // A fixed, explicitly-square wrapper guarantees a perfect circle regardless of the
+  // source image's aspect ratio or the surrounding layout:
+  //   - inline width/height (style) force an exact square box that can't be recomputed.
+  //   - shrink-0 stops a flex row (long name beside it) from squeezing it into an oval.
+  //   - rounded-full + overflow-hidden clip the contents to a circle.
+  // The inner image fills the box with w-full h-full (the h-full overrides Tailwind
+  // Preflight's `img { height: auto }`, which was the egg-shape cause) and object-cover
+  // crops non-square sources instead of distorting them.
   return (
-    <Image
-      src={resolvedSrc}
-      alt={alt}
-      width={size}
-      height={size}
-      className={`inline-block shrink-0 rounded-full object-cover ring-1 ring-[#2a2a38] bg-[#1c1c28] ${className}`}
-    />
+    <span
+      className={`inline-block shrink-0 overflow-hidden rounded-full ring-1 ring-[#2a2a38] bg-[#1c1c28] ${className}`}
+      style={{ width: size, height: size }}
+    >
+      <Image
+        src={resolvedSrc}
+        alt={alt}
+        width={size}
+        height={size}
+        className="block w-full h-full object-cover"
+      />
+    </span>
   )
 }
 

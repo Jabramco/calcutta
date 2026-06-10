@@ -23,6 +23,7 @@ const DEFAULT_AVATAR_SRC = '/avatar-test.png'
  */
 const TEST_AVATAR_OVERRIDES: Record<string, string> = {
   brianglover: '/avatar-test-2.png',
+  mullard97: '/avatar-test-3.png',
 }
 
 export function avatarSrcForName(name?: string | null): string | undefined {

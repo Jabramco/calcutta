@@ -3,7 +3,7 @@
 import type { TeamWithOwner } from '@/lib/types'
 import { formatCurrency } from '@/lib/calculations'
 import { teamFlag, formatTeamDescriptor, type TournamentConfig } from '@/lib/tournament'
-import { Avatar } from '@/components/Avatar'
+import { Avatar, avatarSrcForName } from '@/components/Avatar'
 
 /**
  * Teams grouped by their auction OWNER (shared by both tournaments). This is the "Owners"
@@ -100,7 +100,9 @@ export function OwnersTeamsView({
                     group.isUnowned ? 'text-[#a0a0b8]' : 'text-white'
                   }`}
                 >
-                  {!group.isUnowned && <Avatar alt={group.name} size={24} />}
+                  {!group.isUnowned && (
+                    <Avatar src={avatarSrcForName(group.name)} alt={group.name} size={24} />
+                  )}
                   <span className="text-sm font-bold tracking-wide truncate">{group.name}</span>
                 </span>
                 <span className="text-[11px] text-[#6a6a82] shrink-0">

@@ -5,7 +5,7 @@ import { formatCurrency } from '@/lib/calculations'
 import { AUCTION_PAGE_READONLY as AUCTION_ENV_READONLY } from '@/lib/auctionReadOnly'
 import { useMode } from '@/components/ModeContext'
 import { getTournamentConfig, formatRegion, teamFlag, type PayoutLine } from '@/lib/tournament'
-import { Avatar } from '@/components/Avatar'
+import { Avatar, avatarSrcForName } from '@/components/Avatar'
 
 interface AuctionState {
   isActive: boolean
@@ -965,7 +965,7 @@ export default function AuctionPage() {
                   {auctionState.currentBidder && (
                     <div className="text-sm text-[#a0a0b8] mt-2 flex items-center gap-1.5">
                       Leading:
-                      <Avatar alt={auctionState.currentBidder} size={20} />
+                      <Avatar src={avatarSrcForName(auctionState.currentBidder)} alt={auctionState.currentBidder} size={20} />
                       <span className="font-bold text-white">{auctionState.currentBidder}</span>
                     </div>
                   )}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { OwnerWithTeams } from '@/lib/types'
 import { formatCurrency, calculateTotalPot, calculateOwnerStats } from '@/lib/calculations'
-import { Avatar } from '@/components/Avatar'
+import { Avatar, avatarSrcForName } from '@/components/Avatar'
 
 export default function FinancesPage() {
   const [owners, setOwners] = useState<OwnerWithTeams[]>([])
@@ -110,7 +110,7 @@ export default function FinancesPage() {
                   <tr key={owner.id} className="hover:glass-input transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                       <span className="inline-flex items-center gap-2">
-                        <Avatar alt={owner.name} size={24} />
+                        <Avatar src={avatarSrcForName(owner.name)} alt={owner.name} size={24} />
                         {owner.name}
                       </span>
                     </td>

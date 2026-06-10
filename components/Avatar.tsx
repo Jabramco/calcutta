@@ -30,6 +30,8 @@ const TEST_AVATAR_OVERRIDES: Record<string, string> = {
   rockabyebrady: '/avatar-test-7.png',
   ryshawn: '/avatar-test-8.png',
   omgnofeet: '/avatar-test-9.png',
+  adua711: '/avatar-test-10.png',
+  fammalamadongding: '/avatar-test-11.png',
 }
 
 export function avatarSrcForName(name?: string | null): string | undefined {

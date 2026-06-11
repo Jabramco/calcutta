@@ -320,6 +320,20 @@ export default function DashboardPage() {
     )
   }, [games])
 
+  /** Top section: games kicking off within the next 24h (now ≤ kickoff ≤ now+24h).
+   *  Reuses the same `games` already fetched — no extra request. Recomputed when the
+   *  schedule refetches (mount / tab refocus). */
+  const gamesNext24hSorted = useMemo(() => {
+    const now = Date.now()
+    const windowEnd = now + 24 * 60 * 60 * 1000
+    return games
+      .filter((g) => {
+        const kickoff = new Date(g.date).getTime()
+        return Number.isFinite(kickoff) && kickoff >= now && kickoff <= windowEnd
+      })
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+  }, [games])
+
   const hasLiveWisconsinGame = useMemo(() => {
     return gamesLiveSorted.some((g) => {
       const away = g.away.name.toLowerCase()
@@ -425,6 +439,24 @@ export default function DashboardPage() {
           </div>
           <ModeSegmentedControl />
         </header>
+
+        {/* Next 24 hours — near-term subset of the same upcoming-games feed.
+            Hidden entirely when nothing kicks off in the window (no empty block). */}
+        {!gamesLoading && gamesNext24hSorted.length > 0 && (
+          <section className="mb-8" aria-labelledby="next-24h-heading">
+            <div className="flex items-baseline gap-3 mb-5">
+              <h2 id="next-24h-heading" className="text-lg font-bold text-white">
+                Next 24 hours
+              </h2>
+              <span className="text-xs text-[#a0a0b8]">Kicking off soon — get ready</span>
+            </div>
+            <ul className="grid grid-cols-1 lg:grid-cols-2 gap-4 list-none p-0 m-0">
+              {gamesNext24hSorted.map((g) => (
+                <MatchupCard key={`next24-${g.id}`} g={g} liveHighlight={false} tournament={mode} />
+              ))}
+            </ul>
+          </section>
+        )}
 
         {hasLiveWisconsinGame && (
           <div

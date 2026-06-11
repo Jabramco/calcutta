@@ -325,7 +325,7 @@ interface EspnScoreboard {
  *   "South Korea" / "Korea South" (either order)     → "korea south"
  * Accented names that already match verbatim (Türkiye, Curaçao) collapse cleanly too.
  */
-function normalizeCountry(name: string): string {
+export function normalizeCountry(name: string): string {
   return name
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '') // strip combining diacritical marks

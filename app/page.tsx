@@ -16,6 +16,9 @@ import { ownerHasAliveTeamInPool } from '@/lib/tournamentElimination'
 import { LeaderboardEntry, GlobalStats, type TeamWithOwner } from '@/lib/types'
 import ModeSegmentedControl from '@/components/ModeSegmentedControl'
 import { Avatar, avatarSrcForName } from '@/components/Avatar'
+import { useMode } from '@/components/ModeContext'
+import { teamFlag } from '@/lib/tournament'
+import type { TournamentKey } from '@/lib/tournament'
 
 type UpcomingSide = {
   name: string
@@ -109,7 +112,15 @@ function formatGameTime(iso: string): string {
   }
 }
 
-function MatchupCard({ g, liveHighlight }: { g: UpcomingGame; liveHighlight: boolean }) {
+function MatchupCard({
+  g,
+  liveHighlight,
+  tournament
+}: {
+  g: UpcomingGame
+  liveHighlight: boolean
+  tournament: TournamentKey
+}) {
   return (
     <li
       className={`min-w-0 rounded-xl bg-[#15151e]/90 backdrop-blur-sm border p-4 shadow-[0_8px_32px_rgba(0,0,0,0.25)] transition-all ${
@@ -131,7 +142,7 @@ function MatchupCard({ g, liveHighlight }: { g: UpcomingGame; liveHighlight: boo
         )}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 md:gap-4 items-center">
-        <TeamBlock side={g.away} align="left" />
+        <TeamBlock side={g.away} align="left" tournament={tournament} />
         <div className="flex flex-col items-center justify-center gap-1 text-center">
           {(g.away.score != null || g.home.score != null) && (
             <span className="text-lg font-bold tabular-nums text-white tracking-tight">
@@ -141,7 +152,7 @@ function MatchupCard({ g, liveHighlight }: { g: UpcomingGame; liveHighlight: boo
           )}
           <span className="text-[#6a6a82] text-sm hidden md:block">@</span>
         </div>
-        <TeamBlock side={g.home} align="right" />
+        <TeamBlock side={g.home} align="right" tournament={tournament} />
       </div>
     </li>
   )
@@ -149,6 +160,7 @@ function MatchupCard({ g, liveHighlight }: { g: UpcomingGame; liveHighlight: boo
 
 export default function DashboardPage() {
   const router = useRouter()
+  const { mode } = useMode()
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [stats, setStats] = useState<GlobalStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -454,7 +466,7 @@ export default function DashboardPage() {
             ) : (
               <ul className="grid grid-cols-1 lg:grid-cols-2 gap-4 list-none p-0 m-0">
                 {gamesLiveSorted.map((g) => (
-                  <MatchupCard key={g.id} g={g} liveHighlight />
+                  <MatchupCard key={g.id} g={g} liveHighlight tournament={mode} />
                 ))}
               </ul>
             )}
@@ -681,7 +693,7 @@ export default function DashboardPage() {
             ) : (
               <ul className="grid grid-cols-1 lg:grid-cols-2 gap-4 list-none p-0 m-0">
                 {gamesUpcomingSorted.map((g) => (
-                  <MatchupCard key={g.id} g={g} liveHighlight={false} />
+                  <MatchupCard key={g.id} g={g} liveHighlight={false} tournament={mode} />
                 ))}
               </ul>
             )}
@@ -692,15 +704,26 @@ export default function DashboardPage() {
   )
 }
 
-function TeamBlock({ side, align }: { side: UpcomingSide; align: 'left' | 'right' }) {
+function TeamBlock({
+  side,
+  align,
+  tournament
+}: {
+  side: UpcomingSide
+  align: 'left' | 'right'
+  tournament: TournamentKey
+}) {
   const router = useRouter()
   const ownerClick =
     side.ownerId != null
       ? () => router.push(`/owners/${side.ownerId}`)
       : undefined
+  // Empty string for March Madness (teamFlag is World-Cup-only) → MM unchanged.
+  const flag = teamFlag(side.name, tournament)
   return (
     <div className={align === 'right' ? 'md:text-right' : ''}>
       <div className={`font-semibold text-white ${align === 'right' ? 'md:justify-end' : ''}`}>
+        {flag ? <span className="mr-1.5">{flag}</span> : null}
         {side.name}
       </div>
       {side.ownerName ? (

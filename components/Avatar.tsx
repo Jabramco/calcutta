@@ -27,7 +27,7 @@ const TEST_AVATAR_OVERRIDES: Record<string, string> = {
   decoy: '/avatar-test-4.png',
   terryrozier: '/avatar-test-5.png',
   jhorton24: '/avatar-test-12.png',
-  rockabyebrady: '/avatar-test-7.png',
+  rockabyebrady: '/avatar-test-14.png',
   ryshawn: '/avatar-test-8.png',
   omgnofeet: '/avatar-test-13.png',
   adua711: '/avatar-test-10.png',

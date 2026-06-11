@@ -19,6 +19,7 @@ import { Avatar, avatarSrcForName } from '@/components/Avatar'
 import { useMode } from '@/components/ModeContext'
 import { teamFlag } from '@/lib/tournament'
 import type { TournamentKey } from '@/lib/tournament'
+import { CountdownBanner } from '@/components/CountdownBanner'
 
 type UpcomingSide = {
   name: string
@@ -334,6 +335,19 @@ export default function DashboardPage() {
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
   }, [games])
 
+  /** Minimal fixture shape for the countdown banner — reuses the same `games`
+   *  already fetched (no extra request). */
+  const countdownFixtures = useMemo(
+    () =>
+      games.map((g) => ({
+        id: g.id,
+        date: g.date,
+        awayName: g.away.name,
+        homeName: g.home.name
+      })),
+    [games]
+  )
+
   const hasLiveWisconsinGame = useMemo(() => {
     return gamesLiveSorted.some((g) => {
       const away = g.away.name.toLowerCase()
@@ -430,6 +444,10 @@ export default function DashboardPage() {
       </div>
 
       <div className="container mx-auto px-4 py-6 md:py-8 glass-content max-w-7xl">
+        {/* Real-time kickoff countdown — first thing on the page. Self-hides when
+            there are no upcoming fixtures (e.g. March Madness off-season). */}
+        <CountdownBanner fixtures={countdownFixtures} tournament={mode} />
+
         <header className="mb-6 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-white tracking-tight">Dashboard</h1>

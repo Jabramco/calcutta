@@ -20,6 +20,7 @@ import { useMode } from '@/components/ModeContext'
 import { teamFlag } from '@/lib/tournament'
 import type { TournamentKey } from '@/lib/tournament'
 import { CountdownBanner } from '@/components/CountdownBanner'
+import { TopTeamsBreakdown } from '@/components/TopTeamsBreakdown'
 
 type UpcomingSide = {
   name: string
@@ -689,6 +690,9 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Top teams explainer — which teams have earned the most and why (reuses shared payout logic) */}
+        <TopTeamsBreakdown teams={poolTeams} tournament={mode} />
 
         {/* Payout — full-width row of small cards */}
         {stats && (

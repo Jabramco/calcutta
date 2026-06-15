@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import type { Team } from '@prisma/client'
 import { OwnerWithTeams } from '@/lib/types'
-import { formatCurrency, formatROI, calculateTeamPayout, calculateTotalPot, sumGroupWins } from '@/lib/calculations'
+import { formatCurrency, formatROI, calculateTeamPayout, calculateTotalPot } from '@/lib/calculations'
 import { isTeamEliminated } from '@/lib/tournamentElimination'
 import { teamFlag, getRoundsWon } from '@/lib/tournament'
 import { Avatar, avatarSrcForName } from '@/components/Avatar'
@@ -15,23 +15,27 @@ export default function OwnerPage() {
   const [owner, setOwner] = useState<OwnerWithTeams | null>(null)
   const [poolTeams, setPoolTeams] = useState<Team[]>([])
   const [totalPot, setTotalPot] = useState(0)
+  const [groupTies, setGroupTies] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [ownerRes, teamsRes] = await Promise.all([
+        const [ownerRes, teamsRes, tiesRes] = await Promise.all([
           fetch(`/api/owners/${params.id}`),
-          fetch('/api/teams')
+          fetch('/api/teams'),
+          fetch('/api/group-ties')
         ])
 
         const ownerData = await ownerRes.json()
         const teamsData = await teamsRes.json()
+        const tiesData = await tiesRes.json().catch(() => ({ groupTies: 0 }))
 
         setOwner(ownerData)
         const pool = Array.isArray(teamsData) ? teamsData : []
         setPoolTeams(pool)
         setTotalPot(calculateTotalPot(pool))
+        setGroupTies(Number(tiesData?.groupTies) || 0)
       } catch (error) {
         console.error('Error fetching data:', error)
       } finally {
@@ -58,10 +62,9 @@ export default function OwnerPage() {
     )
   }
 
-  const actualGroupWins = sumGroupWins(poolTeams)
   const totalInvestment = owner.teams.reduce((sum, team) => sum + Number(team.cost), 0)
   const totalPayout = owner.teams.reduce(
-    (sum, team) => sum + calculateTeamPayout(team, totalPot, actualGroupWins),
+    (sum, team) => sum + calculateTeamPayout(team, totalPot, groupTies),
     0
   )
   const roi = totalInvestment > 0 ? ((totalPayout - totalInvestment) / totalInvestment) * 100 : 0
@@ -135,7 +138,7 @@ export default function OwnerPage() {
                 {owner.teams.map(team => {
                   const roundsWon = getRoundsWon(team, team.tournament)
 
-                  const teamPayout = calculateTeamPayout(team, totalPot, actualGroupWins)
+                  const teamPayout = calculateTeamPayout(team, totalPot, groupTies)
                   const eliminated = poolTeams.length > 0 && isTeamEliminated(team, poolTeams)
 
                   return (

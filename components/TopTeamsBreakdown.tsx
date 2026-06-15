@@ -5,8 +5,7 @@ import type { Team, TeamWithOwner } from '@/lib/types'
 import {
   formatCurrency,
   calculateTeamPayout,
-  calculateTotalPot,
-  sumGroupWins
+  calculateTotalPot
 } from '@/lib/calculations'
 import { teamFlag, getRoundsWon } from '@/lib/tournament'
 import type { TournamentKey } from '@/lib/tournament'
@@ -16,7 +15,7 @@ import type { TournamentKey } from '@/lib/tournament'
  * earned the most, and WHY". It reuses the app's shared, tournament-aware payout engine
  * end-to-end:
  *   - per-team dollars from `calculateTeamPayout` (same as the owner-detail page / leaderboard),
- *   - the live pot + group-stage divisor from `calculateTotalPot` / `sumGroupWins`,
+ *   - the live pot from `calculateTotalPot` and the group-stage divisor (72 − `groupTies`),
  *   - the human-readable "why" badges from `getRoundsWon` (config-driven payout buckets),
  *   - World Cup flags from `teamFlag`.
  * Because every number flows through the same helpers, the amounts here match the rest of
@@ -33,24 +32,26 @@ const MAX_TOP_TEAMS = 5
 
 export function TopTeamsBreakdown({
   teams,
-  tournament
+  tournament,
+  groupTies = 0
 }: {
   teams: TeamWithOwner[]
   tournament: TournamentKey
+  /** Live drawn group-stage matches → group-stage divisor is (72 − groupTies). */
+  groupTies?: number
 }) {
   const topTeams = useMemo(() => {
     const totalPot = calculateTotalPot(teams)
-    const actualGroupWins = sumGroupWins(teams)
     return teams
       .map((team) => ({
         team,
-        earnings: calculateTeamPayout(team, totalPot, actualGroupWins),
+        earnings: calculateTeamPayout(team, totalPot, groupTies),
         why: getRoundsWon(team as Team, tournament)
       }))
       .filter((row) => row.earnings > 0)
       .sort((a, b) => b.earnings - a.earnings)
       .slice(0, MAX_TOP_TEAMS)
-  }, [teams, tournament])
+  }, [teams, tournament, groupTies])
 
   return (
     <section className="mb-6" aria-labelledby="top-teams-heading">

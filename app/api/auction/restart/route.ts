@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { getCurrentTournament } from '@/lib/tournamentServer'
+import { GROUP_TIES_SETTING_KEY } from '@/lib/groupTies'
 
 export async function POST() {
   try {
@@ -38,6 +39,8 @@ export async function POST() {
 
     await prisma.settings.deleteMany({ where: { tournament, key: 'lastAuctionSale' } })
     await prisma.settings.deleteMany({ where: { tournament, key: 'auctionEventLog' } })
+    // Clear the group-stage tie count so the divisor resets to the full 72 until the next import.
+    await prisma.settings.deleteMany({ where: { tournament, key: GROUP_TIES_SETTING_KEY } })
 
     // Reset auction state
     const existingState = await prisma.auctionState.findFirst({ where: { tournament } })

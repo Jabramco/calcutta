@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { calculateTotalPot, calculateOwnerStats, sumGroupWins } from '@/lib/calculations'
+import { calculateTotalPot, calculateOwnerStats } from '@/lib/calculations'
+import { getGroupTies } from '@/lib/groupTies'
 import { getCurrentTournament } from '@/lib/tournamentServer'
 
 export async function GET() {
@@ -15,14 +16,14 @@ export async function GET() {
 
     const teams = await prisma.team.findMany({
       where: { tournament },
-      select: { cost: true, groupWins: true }
+      select: { cost: true }
     })
 
     const totalPot = calculateTotalPot(teams)
-    const actualGroupWins = sumGroupWins(teams)
+    const groupTies = await getGroupTies(tournament)
 
     const leaderboard = owners
-      .map((owner) => calculateOwnerStats(owner, owner.teams, totalPot, actualGroupWins))
+      .map((owner) => calculateOwnerStats(owner, owner.teams, totalPot, groupTies))
       .filter((entry) => entry.totalInvestment > 1)
 
     // Sort by ROI descending

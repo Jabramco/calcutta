@@ -74,37 +74,22 @@ type PayoutTeam = Partial<
 >
 
 /**
- * Sum of decisive (non-tied) group-stage wins across the given teams — the live
- * divisor for the World Cup group-stage payout bucket. Each decisive group match
- * contributes exactly one win to some team; draws contribute none. Pass the full
- * tournament team set so the divisor reflects ALL group wins (owned or not), keeping
- * the bucket total at 14% of pot.
- */
-export function sumGroupWins(teams: { groupWins?: number | null }[]): number {
-  if (!teams || teams.length === 0) return 0
-  return teams.reduce((sum, t) => {
-    const n = Number(t.groupWins ?? 0)
-    return sum + (Number.isFinite(n) ? n : 0)
-  }, 0)
-}
-
-/**
- * @param actualGroupWins Live sum of `Team.groupWins` across the tournament. Drives the
- *   dynamic group-stage per-win (the 14% split across only non-tied wins). When omitted
- *   or 0, the group-stage component pays $0 (no divide-by-zero). Knockout/boolean buckets
- *   ignore it and keep their fixed divisors, so March Madness is unaffected.
+ * @param groupTies Live count of DRAWN group-stage matches. Drives the dynamic group-stage
+ *   per-win: the 14% is divided by (72 − ties) (assume every group match yields a win, then
+ *   subtract draws). When omitted it defaults to 0 → 14%/72. Knockout/boolean buckets ignore
+ *   it and keep their fixed divisors, so March Madness is unaffected.
  */
 export function calculateTeamPayout(
   team: PayoutTeam,
   totalPot: number,
-  actualGroupWins?: number
+  groupTies?: number
 ): number {
   const config = resolveConfig(team.tournament)
   const safePot = totalPot || 0
   let payout = 0
 
   for (const round of config.payoutRounds) {
-    const perWin = payoutPerWin(round, safePot, actualGroupWins)
+    const perWin = payoutPerWin(round, safePot, groupTies)
     const value = (team as Record<string, unknown>)[round.field]
     if (round.fieldType === 'count') {
       payout += perWin * Number(value ?? 0)
@@ -131,11 +116,11 @@ export function calculateOwnerStats(
   owner: Owner,
   ownerTeams: Team[],
   totalPot: number,
-  actualGroupWins?: number
+  groupTies?: number
 ): OwnerStats {
   const totalInvestment = ownerTeams.reduce((sum, team) => sum + Number(team.cost), 0)
   const totalPayout = ownerTeams.reduce(
-    (sum, team) => sum + calculateTeamPayout(team, totalPot, actualGroupWins),
+    (sum, team) => sum + calculateTeamPayout(team, totalPot, groupTies),
     0
   )
   const roi = totalInvestment > 0 ? ((totalPayout - totalInvestment) / totalInvestment) * 100 : 0

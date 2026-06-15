@@ -692,7 +692,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Top teams explainer — which teams have earned the most and why (reuses shared payout logic) */}
-        <TopTeamsBreakdown teams={poolTeams} tournament={mode} />
+        <TopTeamsBreakdown teams={poolTeams} tournament={mode} groupTies={stats?.groupTies ?? 0} />
 
         {/* Payout — full-width row of small cards */}
         {stats && (

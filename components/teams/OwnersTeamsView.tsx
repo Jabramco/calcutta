@@ -4,8 +4,7 @@ import type { TeamWithOwner } from '@/lib/types'
 import {
   formatCurrency,
   calculateTeamPayout,
-  calculateTotalPot,
-  sumGroupWins
+  calculateTotalPot
 } from '@/lib/calculations'
 import { teamFlag, formatTeamDescriptor, type TournamentConfig } from '@/lib/tournament'
 import { Avatar, avatarSrcForName } from '@/components/Avatar'
@@ -24,10 +23,10 @@ import { Avatar, avatarSrcForName } from '@/components/Avatar'
  * first, which is the most useful ordering for an auction. "Unowned" always sorts last.
  *
  * Earnings reuse the app's shared payout engine: per-team payout comes from
- * `calculateTeamPayout` and the live pot/group-win divisor come from `calculateTotalPot`
- * and `sumGroupWins` over the already-fetched tournament teams — the exact same inputs the
- * owner-detail page and leaderboard use, so the numbers match. Earnings derive from the live
- * pot + results, so they're $0 until winning bids/results land (rendered as a clean $0.00).
+ * `calculateTeamPayout`, the live pot from `calculateTotalPot` over the already-fetched
+ * tournament teams, and the group-stage divisor is (72 − `groupTies`) — the exact same inputs
+ * the owner-detail page and leaderboard use, so the numbers match. Earnings derive from the
+ * live pot + results, so they're $0 until winning bids/results land (rendered as a clean $0.00).
  */
 interface OwnerGroup {
   key: string
@@ -40,15 +39,17 @@ interface OwnerGroup {
 
 export function OwnersTeamsView({
   teams,
-  config
+  config,
+  groupTies = 0
 }: {
   teams: TeamWithOwner[]
   config: TournamentConfig
+  /** Live drawn group-stage matches → group-stage divisor is (72 − groupTies). */
+  groupTies?: number
 }) {
   // Live payout inputs — identical to the owner-detail page / leaderboard so earnings match:
-  // pot is the sum of all team costs and the group-stage divisor is the live sum of group wins.
+  // pot is the sum of all team costs and the group-stage divisor is (72 − group draws so far).
   const totalPot = calculateTotalPot(teams)
-  const actualGroupWins = sumGroupWins(teams)
   const earningsByTeamId = new Map<number, number>()
 
   const byOwner = new Map<string, OwnerGroup>()
@@ -69,7 +70,7 @@ export function OwnersTeamsView({
       }
       byOwner.set(key, group)
     }
-    const earnings = calculateTeamPayout(team, totalPot, actualGroupWins)
+    const earnings = calculateTeamPayout(team, totalPot, groupTies)
     earningsByTeamId.set(team.id, earnings)
     group.teams.push(team)
     group.totalSpent += Number(team.cost) || 0

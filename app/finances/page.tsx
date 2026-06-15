@@ -2,30 +2,32 @@
 
 import { useEffect, useState } from 'react'
 import { OwnerWithTeams } from '@/lib/types'
-import { formatCurrency, calculateTotalPot, calculateOwnerStats, sumGroupWins } from '@/lib/calculations'
+import { formatCurrency, calculateTotalPot, calculateOwnerStats } from '@/lib/calculations'
 import { Avatar, avatarSrcForName } from '@/components/Avatar'
 
 export default function FinancesPage() {
   const [owners, setOwners] = useState<OwnerWithTeams[]>([])
   const [totalPot, setTotalPot] = useState(0)
-  const [actualGroupWins, setActualGroupWins] = useState(0)
+  const [groupTies, setGroupTies] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [ownersRes, teamsRes] = await Promise.all([
+        const [ownersRes, teamsRes, tiesRes] = await Promise.all([
           fetch('/api/owners'),
-          fetch('/api/teams')
+          fetch('/api/teams'),
+          fetch('/api/group-ties')
         ])
 
         const ownersData = await ownersRes.json()
         const teamsData = await teamsRes.json()
+        const tiesData = await tiesRes.json().catch(() => ({ groupTies: 0 }))
 
         setOwners(ownersData)
         const pool = Array.isArray(teamsData) ? teamsData : []
         setTotalPot(calculateTotalPot(pool))
-        setActualGroupWins(sumGroupWins(pool))
+        setGroupTies(Number(tiesData?.groupTies) || 0)
       } catch (error) {
         console.error('Error fetching data:', error)
       } finally {
@@ -50,7 +52,7 @@ export default function FinancesPage() {
   }, 0)
 
   const totalPayout = owners.reduce((sum, owner) => {
-    const stats = calculateOwnerStats(owner, owner.teams, totalPot, actualGroupWins)
+    const stats = calculateOwnerStats(owner, owner.teams, totalPot, groupTies)
     return sum + stats.totalPayout
   }, 0)
 
@@ -105,7 +107,7 @@ export default function FinancesPage() {
             </thead>
             <tbody className="divide-y divide-[#2a2a38]">
               {owners.map(owner => {
-                const stats = calculateOwnerStats(owner, owner.teams, totalPot, actualGroupWins)
+                const stats = calculateOwnerStats(owner, owner.teams, totalPot, groupTies)
                 const amountOwed = stats.totalInvestment
                 const payoutAmount = stats.totalPayout
 

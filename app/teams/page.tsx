@@ -22,6 +22,7 @@ export default function TeamsPage() {
   const config = getTournamentConfig(mode)
   const isWorldCup = mode === 'worldcup'
   const [teams, setTeams] = useState<TeamWithOwner[]>([])
+  const [groupTies, setGroupTies] = useState(0)
   const [loading, setLoading] = useState(true)
   const [importing, setImporting] = useState(false)
   const [importMessage, setImportMessage] = useState('')
@@ -31,9 +32,14 @@ export default function TeamsPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const teamsRes = await fetch('/api/teams', { cache: 'no-store' })
+        const [teamsRes, tiesRes] = await Promise.all([
+          fetch('/api/teams', { cache: 'no-store' }),
+          fetch('/api/group-ties', { cache: 'no-store' })
+        ])
         const teamsData = await teamsRes.json()
         setTeams(teamsData)
+        const tiesData = await tiesRes.json().catch(() => ({ groupTies: 0 }))
+        setGroupTies(Number(tiesData?.groupTies) || 0)
       } catch (error) {
         console.error('Error fetching data:', error)
       } finally {
@@ -282,7 +288,7 @@ export default function TeamsPage() {
       )}
 
       {view === 'owners' ? (
-        <OwnersTeamsView teams={teams} config={config} />
+        <OwnersTeamsView teams={teams} config={config} groupTies={groupTies} />
       ) : isWorldCup ? (
         <GroupedTeamsView
           groups={config.groups}

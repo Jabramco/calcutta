@@ -23,6 +23,8 @@ export interface LeaderboardEntry {
 
 export interface GlobalStats {
   totalPot: number
+  /** Live drawn group-stage matches; the group-stage divisor is (72 − groupTies). */
+  groupTies?: number
   /** Tournament-aware payout buckets (see lib/tournament.ts). */
   payouts: PayoutLine[]
 }

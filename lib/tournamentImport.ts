@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { fifaRank } from '@/lib/tournament'
+import { GROUP_TIES_SETTING_KEY } from '@/lib/groupTies'
 
 const NCAA_API_BASE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball'
 // ESPN's public, key-less soccer API. The FIFA World Cup league slug is `fifa.world`
@@ -444,6 +445,10 @@ export async function runWorldCupImport(year: number): Promise<TournamentImportR
   let upsetWinnerKey: string | null = null
   let upsetMagnitude = 0
 
+  // Count DRAWN group-stage matches. The group-stage payout divisor is (72 − ties): every
+  // group match is assumed to yield a win until it's actually drawn. Recomputed each run.
+  let groupTies = 0
+
   // Accumulate per ESPN team (keyed by normalized name).
   type Agg = {
     espnName: string
@@ -529,6 +534,7 @@ export async function runWorldCupImport(year: number): Promise<TournamentImportR
       // ESPN sets winner=true on the victor; draws leave both false.
       if (c0.winner) a0.groupWins++
       else if (c1.winner) a1.groupWins++
+      else groupTies++ // a drawn group match: credits no team, shrinks the divisor by 1.
       continue
     }
 
@@ -614,7 +620,15 @@ export async function runWorldCupImport(year: number): Promise<TournamentImportR
     if (parts.length) updates.push(`${team.name}: ${parts.join(', ')}`)
   }
 
-  console.log(`[worldCupImport] Updated ${updatedTeams} World Cup teams`)
+  // Persist the live group-stage draw count (tournament-scoped) so every payout consumer
+  // (server routes + client pages) derives the same divisor (72 − ties). Recomputed each run.
+  await prisma.settings.upsert({
+    where: { tournament_key: { tournament: WORLD_CUP_TOURNAMENT, key: GROUP_TIES_SETTING_KEY } },
+    update: { value: String(groupTies) },
+    create: { tournament: WORLD_CUP_TOURNAMENT, key: GROUP_TIES_SETTING_KEY, value: String(groupTies) }
+  })
+
+  console.log(`[worldCupImport] Updated ${updatedTeams} World Cup teams; group ties=${groupTies}`)
 
   return {
     success: true,

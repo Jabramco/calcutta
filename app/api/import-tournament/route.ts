@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { runTournamentImport, runWorldCupImport } from '@/lib/tournamentImport'
 import { getCurrentTournament } from '@/lib/tournamentServer'
+import { GROUP_TIES_SETTING_KEY } from '@/lib/groupTies'
 
 export async function POST(request: Request) {
   try {
@@ -66,6 +67,8 @@ export async function DELETE() {
         biggestUpset: false
       }
     })
+    // Clear the group-stage tie count so the divisor resets to the full 72 until the next import.
+    await prisma.settings.deleteMany({ where: { tournament, key: GROUP_TIES_SETTING_KEY } })
 
     return NextResponse.json({
       success: true,

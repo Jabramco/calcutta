@@ -1,23 +1,24 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { calculateTotalPot } from '@/lib/calculations'
+import { calculateTotalPot, sumGroupWins } from '@/lib/calculations'
 import { getCurrentTournament } from '@/lib/tournamentServer'
 import { buildPayoutLines } from '@/lib/tournament'
 
 export async function GET() {
   const tournament = await getCurrentTournament()
   try {
-    // Only count teams that have been sold (have an owner) within the active tournament.
+    // One query for the whole tournament: the pot counts only SOLD teams, while the
+    // group-stage divisor sums groupWins across ALL teams (a decisive group match counts
+    // whether or not the team is owned), so the group bucket stays 14% of pot.
     const teams = await prisma.team.findMany({
-      where: {
-        tournament,
-        ownerId: { not: null }
-      },
-      select: { cost: true }
+      where: { tournament },
+      select: { cost: true, ownerId: true, groupWins: true }
     })
 
-    const totalPot = calculateTotalPot(teams)
-    const payouts = buildPayoutLines(totalPot, tournament)
+    const soldTeams = teams.filter((t) => t.ownerId != null)
+    const totalPot = calculateTotalPot(soldTeams)
+    const actualGroupWins = sumGroupWins(teams)
+    const payouts = buildPayoutLines(totalPot, tournament, actualGroupWins)
 
     return NextResponse.json({
       totalPot: totalPot || 0,
@@ -30,7 +31,7 @@ export async function GET() {
     // Return safe default values instead of error
     return NextResponse.json({
       totalPot: 0,
-      payouts: buildPayoutLines(0, tournament)
+      payouts: buildPayoutLines(0, tournament, 0)
     })
   }
 }

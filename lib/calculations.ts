@@ -1,5 +1,5 @@
 import { Team, Owner } from '@prisma/client'
-import { resolveConfig } from '@/lib/tournament'
+import { resolveConfig, payoutPerWin } from '@/lib/tournament'
 
 // Payout percentages for each round (March Madness). Kept for backwards compatibility;
 // the canonical, tournament-aware payout structure lives in lib/tournament.ts.
@@ -73,13 +73,38 @@ type PayoutTeam = Partial<
   >
 >
 
-export function calculateTeamPayout(team: PayoutTeam, totalPot: number): number {
+/**
+ * Sum of decisive (non-tied) group-stage wins across the given teams — the live
+ * divisor for the World Cup group-stage payout bucket. Each decisive group match
+ * contributes exactly one win to some team; draws contribute none. Pass the full
+ * tournament team set so the divisor reflects ALL group wins (owned or not), keeping
+ * the bucket total at 14% of pot.
+ */
+export function sumGroupWins(teams: { groupWins?: number | null }[]): number {
+  if (!teams || teams.length === 0) return 0
+  return teams.reduce((sum, t) => {
+    const n = Number(t.groupWins ?? 0)
+    return sum + (Number.isFinite(n) ? n : 0)
+  }, 0)
+}
+
+/**
+ * @param actualGroupWins Live sum of `Team.groupWins` across the tournament. Drives the
+ *   dynamic group-stage per-win (the 14% split across only non-tied wins). When omitted
+ *   or 0, the group-stage component pays $0 (no divide-by-zero). Knockout/boolean buckets
+ *   ignore it and keep their fixed divisors, so March Madness is unaffected.
+ */
+export function calculateTeamPayout(
+  team: PayoutTeam,
+  totalPot: number,
+  actualGroupWins?: number
+): number {
   const config = resolveConfig(team.tournament)
   const safePot = totalPot || 0
   let payout = 0
 
   for (const round of config.payoutRounds) {
-    const perWin = (safePot * round.pctOfPot) / round.winners
+    const perWin = payoutPerWin(round, safePot, actualGroupWins)
     const value = (team as Record<string, unknown>)[round.field]
     if (round.fieldType === 'count') {
       payout += perWin * Number(value ?? 0)
@@ -105,10 +130,14 @@ export interface OwnerStats {
 export function calculateOwnerStats(
   owner: Owner,
   ownerTeams: Team[],
-  totalPot: number
+  totalPot: number,
+  actualGroupWins?: number
 ): OwnerStats {
   const totalInvestment = ownerTeams.reduce((sum, team) => sum + Number(team.cost), 0)
-  const totalPayout = ownerTeams.reduce((sum, team) => sum + calculateTeamPayout(team, totalPot), 0)
+  const totalPayout = ownerTeams.reduce(
+    (sum, team) => sum + calculateTeamPayout(team, totalPot, actualGroupWins),
+    0
+  )
   const roi = totalInvestment > 0 ? ((totalPayout - totalInvestment) / totalInvestment) * 100 : 0
 
   return {

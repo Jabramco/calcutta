@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import type { Team } from '@prisma/client'
 import { OwnerWithTeams } from '@/lib/types'
-import { formatCurrency, formatROI, calculateTeamPayout, calculateTotalPot } from '@/lib/calculations'
+import { formatCurrency, formatROI, calculateTeamPayout, calculateTotalPot, sumGroupWins } from '@/lib/calculations'
 import { isTeamEliminated } from '@/lib/tournamentElimination'
 import { teamFlag, getRoundsWon } from '@/lib/tournament'
 import { Avatar, avatarSrcForName } from '@/components/Avatar'
@@ -58,8 +58,12 @@ export default function OwnerPage() {
     )
   }
 
+  const actualGroupWins = sumGroupWins(poolTeams)
   const totalInvestment = owner.teams.reduce((sum, team) => sum + Number(team.cost), 0)
-  const totalPayout = owner.teams.reduce((sum, team) => sum + calculateTeamPayout(team, totalPot), 0)
+  const totalPayout = owner.teams.reduce(
+    (sum, team) => sum + calculateTeamPayout(team, totalPot, actualGroupWins),
+    0
+  )
   const roi = totalInvestment > 0 ? ((totalPayout - totalInvestment) / totalInvestment) * 100 : 0
 
   return (
@@ -131,7 +135,7 @@ export default function OwnerPage() {
                 {owner.teams.map(team => {
                   const roundsWon = getRoundsWon(team, team.tournament)
 
-                  const teamPayout = calculateTeamPayout(team, totalPot)
+                  const teamPayout = calculateTeamPayout(team, totalPot, actualGroupWins)
                   const eliminated = poolTeams.length > 0 && isTeamEliminated(team, poolTeams)
 
                   return (

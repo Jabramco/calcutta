@@ -132,7 +132,10 @@ const WORLD_CUP: TournamentConfig = {
   //   groupWins (count) → group-stage wins; worstGd / biggestUpset → World-Cup-only booleans.
   //
   // Buckets (e.g. at a $1,000 pot):
-  //   Group Stage:   14% / 72 group wins (≈$1.94/win, $140 bucket — nominal, ignores draws)
+  //   Group Stage:   14% / ACTUAL non-tied group wins (DYNAMIC — sum of Team.groupWins;
+  //                  draws don't count, so fewer winners ⇒ bigger per-win. The `winners: 72`
+  //                  below is only the nominal max match count; the live divisor is passed in
+  //                  via payoutPerWin/buildPayoutLines/calculateTeamPayout. $140 bucket total.)
   //   Round of 32:   14% / 16 winners    ($8.75/win,  $140 bucket)
   //   Round of 16:   14% / 8 winners     ($17.50/win, $140 bucket)
   //   Quarterfinal:  14% / 4 winners     ($35.00/win, $140 bucket)
@@ -211,16 +214,49 @@ export interface PayoutLine {
   bucketTotal: number
 }
 
-/** Derive the per-win + total dollar amounts for each payout bucket from the pot size. */
-export function buildPayoutLines(totalPot: number, tournament: TournamentKey): PayoutLine[] {
+/**
+ * Per-win dollar amount for a single payout bucket.
+ *
+ * Boolean buckets (knockout rounds, upset, GD) divide their share by the FIXED
+ * `winners` count — knockout matches never tie, so the number of winners is known.
+ *
+ * The World Cup group-stage bucket is a `count` bucket and ties/draws produce NO
+ * win, so the 14% is divided DYNAMICALLY by the ACTUAL number of decisive (non-tied)
+ * group wins so far — `actualGroupWins`, the live sum of `Team.groupWins`. Fewer
+ * winners (more draws) ⇒ a bigger payout per win, and per-win × actualGroupWins always
+ * equals the 14% bucket. Zero wins (pre-tournament / before any decisive group match)
+ * ⇒ $0 per win (no divide-by-zero).
+ */
+export function payoutPerWin(round: PayoutRound, totalPot: number, actualGroupWins?: number): number {
+  const safePot = totalPot || 0
+  if (round.fieldType === 'count') {
+    const divisor = actualGroupWins ?? 0
+    return divisor > 0 ? (safePot * round.pctOfPot) / divisor : 0
+  }
+  return (safePot * round.pctOfPot) / round.winners
+}
+
+/**
+ * Derive the per-win + total dollar amounts for each payout bucket from the pot size.
+ *
+ * `actualGroupWins` (sum of every World Cup team's `groupWins`) makes the group-stage
+ * per-win dynamic: the 14% is split across only the real, non-tied wins. The bucket
+ * TOTAL stays `pot × pctOfPot` (14%); only the per-win figure (and the reported
+ * `winners` divisor) move with the live results.
+ */
+export function buildPayoutLines(
+  totalPot: number,
+  tournament: TournamentKey,
+  actualGroupWins?: number
+): PayoutLine[] {
   const safePot = totalPot || 0
   return getTournamentConfig(tournament).payoutRounds.map((round) => ({
     key: round.key,
     label: round.label,
     shortLabel: round.shortLabel,
     pctLabel: round.pctLabel,
-    winners: round.winners,
-    perWin: (safePot * round.pctOfPot) / round.winners,
+    winners: round.fieldType === 'count' ? (actualGroupWins ?? 0) : round.winners,
+    perWin: payoutPerWin(round, safePot, actualGroupWins),
     bucketTotal: safePot * round.pctOfPot
   }))
 }

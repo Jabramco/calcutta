@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { OwnerWithTeams } from '@/lib/types'
-import { formatCurrency, calculateTotalPot, calculateOwnerStats } from '@/lib/calculations'
+import { formatCurrency, calculateTotalPot, calculateOwnerStats, sumGroupWins } from '@/lib/calculations'
 import { Avatar, avatarSrcForName } from '@/components/Avatar'
 
 export default function FinancesPage() {
   const [owners, setOwners] = useState<OwnerWithTeams[]>([])
   const [totalPot, setTotalPot] = useState(0)
+  const [actualGroupWins, setActualGroupWins] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -22,7 +23,9 @@ export default function FinancesPage() {
         const teamsData = await teamsRes.json()
 
         setOwners(ownersData)
-        setTotalPot(calculateTotalPot(teamsData))
+        const pool = Array.isArray(teamsData) ? teamsData : []
+        setTotalPot(calculateTotalPot(pool))
+        setActualGroupWins(sumGroupWins(pool))
       } catch (error) {
         console.error('Error fetching data:', error)
       } finally {
@@ -47,7 +50,7 @@ export default function FinancesPage() {
   }, 0)
 
   const totalPayout = owners.reduce((sum, owner) => {
-    const stats = calculateOwnerStats(owner, owner.teams, totalPot)
+    const stats = calculateOwnerStats(owner, owner.teams, totalPot, actualGroupWins)
     return sum + stats.totalPayout
   }, 0)
 
@@ -102,7 +105,7 @@ export default function FinancesPage() {
             </thead>
             <tbody className="divide-y divide-[#2a2a38]">
               {owners.map(owner => {
-                const stats = calculateOwnerStats(owner, owner.teams, totalPot)
+                const stats = calculateOwnerStats(owner, owner.teams, totalPot, actualGroupWins)
                 const amountOwed = stats.totalInvestment
                 const payoutAmount = stats.totalPayout
 

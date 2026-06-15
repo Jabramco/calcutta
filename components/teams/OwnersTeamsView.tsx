@@ -1,7 +1,12 @@
 'use client'
 
 import type { TeamWithOwner } from '@/lib/types'
-import { formatCurrency } from '@/lib/calculations'
+import {
+  formatCurrency,
+  calculateTeamPayout,
+  calculateTotalPot,
+  sumGroupWins
+} from '@/lib/calculations'
 import { teamFlag, formatTeamDescriptor, type TournamentConfig } from '@/lib/tournament'
 import { Avatar, avatarSrcForName } from '@/components/Avatar'
 
@@ -17,12 +22,19 @@ import { Avatar, avatarSrcForName } from '@/components/Avatar'
  *
  * Owners are sorted by total spend (descending), then name — the biggest spenders surface
  * first, which is the most useful ordering for an auction. "Unowned" always sorts last.
+ *
+ * Earnings reuse the app's shared payout engine: per-team payout comes from
+ * `calculateTeamPayout` and the live pot/group-win divisor come from `calculateTotalPot`
+ * and `sumGroupWins` over the already-fetched tournament teams — the exact same inputs the
+ * owner-detail page and leaderboard use, so the numbers match. Earnings derive from the live
+ * pot + results, so they're $0 until winning bids/results land (rendered as a clean $0.00).
  */
 interface OwnerGroup {
   key: string
   name: string
   teams: TeamWithOwner[]
   totalSpent: number
+  totalEarnings: number
   isUnowned: boolean
 }
 
@@ -33,6 +45,12 @@ export function OwnersTeamsView({
   teams: TeamWithOwner[]
   config: TournamentConfig
 }) {
+  // Live payout inputs — identical to the owner-detail page / leaderboard so earnings match:
+  // pot is the sum of all team costs and the group-stage divisor is the live sum of group wins.
+  const totalPot = calculateTotalPot(teams)
+  const actualGroupWins = sumGroupWins(teams)
+  const earningsByTeamId = new Map<number, number>()
+
   const byOwner = new Map<string, OwnerGroup>()
   const UNOWNED_KEY = '__unowned__'
 
@@ -46,12 +64,16 @@ export function OwnersTeamsView({
         name: owner?.name ?? 'Unowned',
         teams: [],
         totalSpent: 0,
+        totalEarnings: 0,
         isUnowned: !owner
       }
       byOwner.set(key, group)
     }
+    const earnings = calculateTeamPayout(team, totalPot, actualGroupWins)
+    earningsByTeamId.set(team.id, earnings)
     group.teams.push(team)
     group.totalSpent += Number(team.cost) || 0
+    group.totalEarnings += earnings
   }
 
   const groups = [...byOwner.values()].sort((a, b) => {
@@ -94,27 +116,43 @@ export function OwnersTeamsView({
               key={group.key}
               className="glass-card rounded-2xl border border-[#2a2a38] overflow-hidden"
             >
-              <div className="px-4 py-3 border-b border-[#2a2a38] flex items-center justify-between gap-2">
-                <span
-                  className={`inline-flex items-center gap-2 min-w-0 ${
-                    group.isUnowned ? 'text-[#a0a0b8]' : 'text-white'
-                  }`}
-                >
-                  {!group.isUnowned && (
-                    <Avatar src={avatarSrcForName(group.name)} alt={group.name} size={24} />
-                  )}
-                  <span className="text-sm font-bold tracking-wide truncate">{group.name}</span>
-                </span>
-                <span className="text-[11px] text-[#6a6a82] shrink-0">
-                  {group.teams.length} {group.teams.length === 1 ? 'team' : 'teams'}
-                  {!group.isUnowned && group.totalSpent > 0 && (
-                    <> · {formatCurrency(group.totalSpent)}</>
-                  )}
-                </span>
+              <div className="px-4 py-3 border-b border-[#2a2a38]">
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className={`inline-flex items-center gap-2 min-w-0 ${
+                      group.isUnowned ? 'text-[#a0a0b8]' : 'text-white'
+                    }`}
+                  >
+                    {!group.isUnowned && (
+                      <Avatar src={avatarSrcForName(group.name)} alt={group.name} size={24} />
+                    )}
+                    <span className="text-sm font-bold tracking-wide truncate">{group.name}</span>
+                  </span>
+                  <span className="text-[11px] text-[#6a6a82] shrink-0">
+                    {group.teams.length} {group.teams.length === 1 ? 'team' : 'teams'}
+                  </span>
+                </div>
+                {!group.isUnowned && (
+                  <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+                    <span className="text-[#6a6a82]">
+                      Spent{' '}
+                      <span className="text-[#a0a0b8] tabular-nums font-medium">
+                        {formatCurrency(group.totalSpent)}
+                      </span>
+                    </span>
+                    <span className="text-[#6a6a82]">
+                      Earned{' '}
+                      <span className="text-[#2dce89] tabular-nums font-semibold">
+                        {formatCurrency(group.totalEarnings)}
+                      </span>
+                    </span>
+                  </div>
+                )}
               </div>
               <ul className="divide-y divide-[#2a2a38]/70">
                 {group.teams.map((team) => {
                   const flag = teamFlag(team.name, team.tournament)
+                  const earnings = earningsByTeamId.get(team.id) ?? 0
                   return (
                     <li
                       key={team.id}
@@ -133,8 +171,16 @@ export function OwnersTeamsView({
                           {formatTeamDescriptor(config, team)}
                         </div>
                       </div>
-                      <div className="text-sm tabular-nums text-[#00ceb8] font-semibold shrink-0">
-                        {Number(team.cost) > 0 ? formatCurrency(Number(team.cost)) : '—'}
+                      <div className="shrink-0 text-right">
+                        <div className="text-sm tabular-nums text-[#00ceb8] font-semibold">
+                          {Number(team.cost) > 0 ? formatCurrency(Number(team.cost)) : '—'}
+                        </div>
+                        <div
+                          className="text-[11px] tabular-nums text-[#2dce89]"
+                          title="Earnings to date"
+                        >
+                          {formatCurrency(earnings)}
+                        </div>
                       </div>
                     </li>
                   )

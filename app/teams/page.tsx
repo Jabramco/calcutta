@@ -26,7 +26,7 @@ export default function TeamsPage() {
   const [importing, setImporting] = useState(false)
   const [importMessage, setImportMessage] = useState('')
   const [bracketLayout, setBracketLayout] = useState<'regional' | 'full'>('full')
-  const [view, setView] = useState<TeamsView>('groups')
+  const [view, setView] = useState<TeamsView>('owners')
 
   useEffect(() => {
     async function fetchData() {
@@ -184,18 +184,6 @@ export default function TeamsPage() {
           >
             <button
               type="button"
-              onClick={() => setView('groups')}
-              aria-pressed={view === 'groups'}
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                view === 'groups'
-                  ? 'bg-[#00ceb8]/20 text-[#00ceb8]'
-                  : 'text-[#a0a0b8] hover:text-white'
-              }`}
-            >
-              Groups
-            </button>
-            <button
-              type="button"
               onClick={() => setView('owners')}
               aria-pressed={view === 'owners'}
               className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -205,6 +193,18 @@ export default function TeamsPage() {
               }`}
             >
               Owners
+            </button>
+            <button
+              type="button"
+              onClick={() => setView('groups')}
+              aria-pressed={view === 'groups'}
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                view === 'groups'
+                  ? 'bg-[#00ceb8]/20 text-[#00ceb8]'
+                  : 'text-[#a0a0b8] hover:text-white'
+              }`}
+            >
+              Groups
             </button>
           </div>
           {!isWorldCup && view === 'groups' && (

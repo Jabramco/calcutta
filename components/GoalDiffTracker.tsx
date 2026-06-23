@@ -29,7 +29,7 @@ import { Avatar, avatarSrcForName } from '@/components/Avatar'
  * Early state: before any match completes no team is flagged `worstGd` (GDs are all 0), so we
  * show a muted "race hasn't started" note instead of an arbitrary 0-GD list.
  */
-const MAX_CONTENDERS = 10
+const MAX_CONTENDERS = 5
 
 /** Minimal shape of an upcoming fixture from /api/upcoming-games (names are already our
  *  canonical DB names, so a normalized string match lines them up with tracker teams). */

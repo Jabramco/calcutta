@@ -32,6 +32,7 @@ export async function POST() {
         championship: false,
         groupWins: 0,
         worstGd: false,
+        goalDiff: 0,
         biggestUpset: false,
       }
     })

@@ -64,6 +64,7 @@ export async function DELETE() {
         championship: false,
         groupWins: 0,
         worstGd: false,
+        goalDiff: 0,
         biggestUpset: false
       }
     })

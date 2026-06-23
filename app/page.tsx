@@ -692,16 +692,22 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Top teams explainer — which teams have earned the most and why (reuses shared payout logic) */}
-        <TopTeamsBreakdown teams={poolTeams} tournament={mode} groupTies={stats?.groupTies ?? 0} />
+        {/* Top Teams + Worst-GD tracker side by side on wide screens. The grid only becomes
+            two-column in World Cup mode; in March Madness the GD tracker renders nothing, so the
+            wrapper stays single-column and Top Teams remains full-width (no empty column). Each
+            child keeps its own mb-6, so mobile stacking spacing matches the rest of the dashboard. */}
+        <div className={`grid grid-cols-1 items-start ${mode === 'worldcup' ? 'lg:grid-cols-2 lg:gap-6' : ''}`}>
+          {/* Top teams explainer — which teams have earned the most and why (reuses shared payout logic) */}
+          <TopTeamsBreakdown teams={poolTeams} tournament={mode} groupTies={stats?.groupTies ?? 0} />
 
-        {/* Worst Goal Differential race — World Cup booby-prize tracker (hidden in March Madness) */}
-        <GoalDiffTracker
-          teams={poolTeams}
-          tournament={mode}
-          worstGdPayout={stats?.payouts.find((p) => p.key === 'worstGd')?.bucketTotal ?? 0}
-          fixtures={games}
-        />
+          {/* Worst Goal Differential race — World Cup booby-prize tracker (hidden in March Madness) */}
+          <GoalDiffTracker
+            teams={poolTeams}
+            tournament={mode}
+            worstGdPayout={stats?.payouts.find((p) => p.key === 'worstGd')?.bucketTotal ?? 0}
+            fixtures={games}
+          />
+        </div>
 
         {/* Payout — full-width row of small cards */}
         {stats && (

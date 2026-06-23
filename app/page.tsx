@@ -21,6 +21,7 @@ import { teamFlag } from '@/lib/tournament'
 import type { TournamentKey } from '@/lib/tournament'
 import { CountdownBanner } from '@/components/CountdownBanner'
 import { TopTeamsBreakdown } from '@/components/TopTeamsBreakdown'
+import { GoalDiffTracker } from '@/components/GoalDiffTracker'
 
 type UpcomingSide = {
   name: string
@@ -693,6 +694,14 @@ export default function DashboardPage() {
 
         {/* Top teams explainer — which teams have earned the most and why (reuses shared payout logic) */}
         <TopTeamsBreakdown teams={poolTeams} tournament={mode} groupTies={stats?.groupTies ?? 0} />
+
+        {/* Worst Goal Differential race — World Cup booby-prize tracker (hidden in March Madness) */}
+        <GoalDiffTracker
+          teams={poolTeams}
+          tournament={mode}
+          worstGdPayout={stats?.payouts.find((p) => p.key === 'worstGd')?.bucketTotal ?? 0}
+          fixtures={games}
+        />
 
         {/* Payout — full-width row of small cards */}
         {stats && (

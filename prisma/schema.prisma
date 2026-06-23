@@ -57,6 +57,9 @@ model Team {
   // booby prize, and the "biggest upset by FIFA ranking" prize (single team each).
   groupWins     Int      @default(0)
   worstGd       Boolean  @default(false)
+  // World Cup only: overall goal differential (goalsFor − goalsAgainst) across all completed
+  // matches. Drives the Worst-GD race tracker; `worstGd` flags the single current minimum.
+  goalDiff      Int      @default(0)
   biggestUpset  Boolean  @default(false)
   isDogs        Boolean  @default(false)   // true = "Dogs {region}" aggregate (seeds 14–16)
   dogTeamId     Int?                       // if set, this team is seed 14/15/16 and belongs to Dogs team

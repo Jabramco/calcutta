@@ -581,6 +581,7 @@ export async function runWorldCupImport(year: number): Promise<TournamentImportR
       final4: false,
       championship: false,
       worstGd: false,
+      goalDiff: 0,
       biggestUpset: false
     }
   })
@@ -604,6 +605,7 @@ export async function runWorldCupImport(year: number): Promise<TournamentImportR
         elite8: a.elite8,
         championship: a.championship,
         worstGd: isWorst,
+        goalDiff: a.goalsFor - a.goalsAgainst,
         biggestUpset: isUpset
       }
     })

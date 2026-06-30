@@ -5,13 +5,15 @@ import { TeamWithOwner } from '@/lib/types'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { RegionalTeamsBracket } from '@/components/teams/RegionalTeamsBracket'
 import { FullTournamentBracket } from '@/components/teams/FullTournamentBracket'
-import { GroupedTeamsView } from '@/components/teams/GroupedTeamsView'
 import { OwnersTeamsView } from '@/components/teams/OwnersTeamsView'
+import { WorldCupBracket } from '@/components/teams/WorldCupBracket'
 import { useMode } from '@/components/ModeContext'
 import { getTournamentConfig } from '@/lib/tournament'
 
-/** Top-level Teams page view: by group/region ("groups") or by auction owner ("owners"). */
-type TeamsView = 'groups' | 'owners'
+/** Top-level Teams page view. March Madness: "groups" (region bracket) or "owners". World Cup:
+ *  "bracket" (knockout bracket) or "owners" — the World Cup "groups" list is superseded by the
+ *  knockout bracket now that the tournament has reached the knockout stage. */
+type TeamsView = 'groups' | 'owners' | 'bracket'
 
 /** Year passed to ESPN bracket import (admin “Import results”). */
 const TOURNAMENT_IMPORT_YEAR = 2026
@@ -28,6 +30,13 @@ export default function TeamsPage() {
   const [importMessage, setImportMessage] = useState('')
   const [bracketLayout, setBracketLayout] = useState<'regional' | 'full'>('full')
   const [view, setView] = useState<TeamsView>('owners')
+
+  // Default view per tournament: World Cup opens on the knockout Bracket (now that the
+  // knockout stage is live); March Madness keeps its Owners default. Re-runs only when the
+  // tournament changes, so a user's manual toggle within a mode is preserved.
+  useEffect(() => {
+    setView(isWorldCup ? 'bracket' : 'owners')
+  }, [isWorldCup])
 
   useEffect(() => {
     async function fetchData() {
@@ -186,8 +195,22 @@ export default function TeamsPage() {
           <div
             className="inline-flex rounded-lg border border-[#2a2a38] bg-[#1c1c28]/80 p-0.5"
             role="group"
-            aria-label="Group teams by"
+            aria-label="Teams view"
           >
+            {isWorldCup ? (
+              <button
+                type="button"
+                onClick={() => setView('bracket')}
+                aria-pressed={view === 'bracket'}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  view === 'bracket'
+                    ? 'bg-[#00ceb8]/20 text-[#00ceb8]'
+                    : 'text-[#a0a0b8] hover:text-white'
+                }`}
+              >
+                Bracket
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => setView('owners')}
@@ -200,18 +223,20 @@ export default function TeamsPage() {
             >
               Owners
             </button>
-            <button
-              type="button"
-              onClick={() => setView('groups')}
-              aria-pressed={view === 'groups'}
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                view === 'groups'
-                  ? 'bg-[#00ceb8]/20 text-[#00ceb8]'
-                  : 'text-[#a0a0b8] hover:text-white'
-              }`}
-            >
-              Groups
-            </button>
+            {!isWorldCup ? (
+              <button
+                type="button"
+                onClick={() => setView('groups')}
+                aria-pressed={view === 'groups'}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  view === 'groups'
+                    ? 'bg-[#00ceb8]/20 text-[#00ceb8]'
+                    : 'text-[#a0a0b8] hover:text-white'
+                }`}
+              >
+                Groups
+              </button>
+            ) : null}
           </div>
           {!isWorldCup && view === 'groups' && (
             <div
@@ -290,11 +315,7 @@ export default function TeamsPage() {
       {view === 'owners' ? (
         <OwnersTeamsView teams={teams} config={config} groupTies={groupTies} />
       ) : isWorldCup ? (
-        <GroupedTeamsView
-          groups={config.groups}
-          teamsByGroup={teamsByRegion}
-          groupNoun={config.groupNoun}
-        />
+        <WorldCupBracket />
       ) : bracketLayout === 'regional' ? (
         <RegionalTeamsBracket teamsByRegion={teamsByRegion} />
       ) : (

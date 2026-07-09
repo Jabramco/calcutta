@@ -20,7 +20,7 @@ import { useMode } from '@/components/ModeContext'
 import { teamFlag } from '@/lib/tournament'
 import type { TournamentKey } from '@/lib/tournament'
 import { CountdownBanner } from '@/components/CountdownBanner'
-import { RonaldoTribute } from '@/components/RonaldoTribute'
+import { ReamTribute } from '@/components/ReamTribute'
 import { TopTeamsBreakdown } from '@/components/TopTeamsBreakdown'
 import { GoalDiffTracker } from '@/components/GoalDiffTracker'
 
@@ -447,8 +447,8 @@ export default function DashboardPage() {
       </div>
 
       <div className="container mx-auto px-4 py-6 md:py-8 glass-content max-w-7xl">
-        {/* Cristiano Ronaldo farewell tribute — World Cup only, dismissable (persisted). */}
-        <RonaldoTribute tournament={mode} />
+        {/* Tim Ream tribute — World Cup only, dismissable (persisted). */}
+        <ReamTribute tournament={mode} />
 
         {/* Real-time kickoff countdown — first thing on the page. Self-hides when
             there are no upcoming fixtures (e.g. March Madness off-season). */}

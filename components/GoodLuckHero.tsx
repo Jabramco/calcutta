@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from 'react'
 import type { TournamentKey } from '@/lib/tournament'
+import { Avatar, avatarSrcForName } from '@/components/Avatar'
 
 /**
  * Dismissable "Good luck, Jared" hero card for the top of the World Cup dashboard, wishing Jared
@@ -72,9 +73,16 @@ export function GoodLuckHero({ tournament }: { tournament: TournamentKey }) {
         </button>
 
         <div className="relative flex flex-col sm:flex-row items-center gap-4 sm:gap-6 p-5 sm:p-6">
-          {/* Ball motif */}
-          <div className="shrink-0 flex items-center justify-center h-20 w-20 sm:h-24 sm:w-24 rounded-2xl border border-[#f0c400]/40 bg-gradient-to-br from-[#f0c400]/20 to-[#c8102e]/25">
-            <span className="text-5xl sm:text-6xl drop-shadow" aria-hidden>⚽</span>
+          {/* Jared's avatar (jhorton24) — resolved through the shared avatar system so it
+              stays consistent with the rest of the app. Wrapped in a gold→red ring; the Avatar
+              component itself guarantees a perfect circle. */}
+          <div className="shrink-0 rounded-full p-[3px] bg-gradient-to-br from-[#f0c400] to-[#c8102e] shadow-[0_6px_20px_rgba(240,196,0,0.3)]">
+            <Avatar
+              src={avatarSrcForName('jhorton24')}
+              alt="jhorton24"
+              size={88}
+              className="block"
+            />
           </div>
 
           <div className="min-w-0 text-center sm:text-left">

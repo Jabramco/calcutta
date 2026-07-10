@@ -20,7 +20,7 @@ import { useMode } from '@/components/ModeContext'
 import { teamFlag } from '@/lib/tournament'
 import type { TournamentKey } from '@/lib/tournament'
 import { CountdownBanner } from '@/components/CountdownBanner'
-import { GoodLuckHero } from '@/components/GoodLuckHero'
+import { JaredTributeTakeover } from '@/components/JaredTributeTakeover'
 import { TopTeamsBreakdown } from '@/components/TopTeamsBreakdown'
 import { GoalDiffTracker } from '@/components/GoalDiffTracker'
 
@@ -447,8 +447,8 @@ export default function DashboardPage() {
       </div>
 
       <div className="container mx-auto px-4 py-6 md:py-8 glass-content max-w-7xl">
-        {/* Good luck, Jared (Belgium) — World Cup only, dismissable (persisted). */}
-        <GoodLuckHero tournament={mode} />
+        {/* Jared elimination tribute — full-page takeover, World Cup only, dismissable (persisted). */}
+        <JaredTributeTakeover tournament={mode} />
 
         {/* Real-time kickoff countdown — first thing on the page. Self-hides when
             there are no upcoming fixtures (e.g. March Madness off-season). */}

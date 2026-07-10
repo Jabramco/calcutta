@@ -697,3 +697,82 @@ tr.leaderboard-podium-first:hover {
   }
 }
 
+/* Jared elimination tribute — full-page takeover. Premium fade + scale-in for
+   the card, a soft backdrop fade, and a slow shimmer/glow on Belgium gold. */
+@keyframes jared-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes jared-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes jared-glow {
+  0%,
+  100% {
+    box-shadow: 0 20px 70px rgba(240, 196, 0, 0.22), inset 0 0 0 1px rgba(240, 196, 0, 0.28);
+  }
+  50% {
+    box-shadow: 0 26px 90px rgba(200, 16, 46, 0.32), inset 0 0 0 1px rgba(240, 196, 0, 0.5);
+  }
+}
+
+@keyframes jared-avatar-halo {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(240, 196, 0, 0.45), 0 8px 30px rgba(240, 196, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(240, 196, 0, 0), 0 8px 30px rgba(200, 16, 46, 0.35);
+  }
+}
+
+@keyframes jared-sparkle {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(-6px) scale(1.15);
+  }
+}
+
+.jared-backdrop {
+  animation: jared-backdrop-in 0.4s ease-out both;
+}
+
+.jared-card {
+  animation: jared-card-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) both, jared-glow 4s ease-in-out 0.55s infinite;
+}
+
+.jared-avatar-halo {
+  animation: jared-avatar-halo 2.6s ease-in-out infinite;
+}
+
+.jared-sparkle {
+  animation: jared-sparkle 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jared-backdrop,
+  .jared-card,
+  .jared-avatar-halo,
+  .jared-sparkle {
+    animation: none;
+  }
+}
+

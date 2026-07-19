@@ -697,10 +697,10 @@ tr.leaderboard-podium-first:hover {
   }
 }
 
-/* Semifinal preview hero — cinematic, trailer-style motion: a slow diagonal
-   gradient sweep across the hero, a pulsing accent glow, a staggered fade/scale
-   -in for the matchup panels, and a "VS" clash pulse. On-brand teal/gold accents. */
-@keyframes semifinal-sheen {
+/* Champion hero — celebratory, trophy/gold trailer motion: a slow diagonal gold
+   gradient sweep, a pulsing gold glow, a staggered fade/scale-in for the panels, a
+   trophy bounce, and drifting confetti. On-brand gold + Spain-red accents. */
+@keyframes champion-sheen {
   0% {
     background-position: 0% 50%;
   }
@@ -709,17 +709,17 @@ tr.leaderboard-podium-first:hover {
   }
 }
 
-@keyframes semifinal-glow {
+@keyframes champion-glow {
   0%,
   100% {
-    box-shadow: 0 16px 50px rgba(0, 206, 184, 0.16), inset 0 0 0 1px rgba(0, 206, 184, 0.22);
+    box-shadow: 0 16px 50px rgba(255, 213, 74, 0.2), inset 0 0 0 1px rgba(255, 213, 74, 0.28);
   }
   50% {
-    box-shadow: 0 22px 70px rgba(255, 213, 74, 0.22), inset 0 0 0 1px rgba(255, 213, 74, 0.4);
+    box-shadow: 0 24px 76px rgba(200, 16, 46, 0.28), inset 0 0 0 1px rgba(255, 213, 74, 0.5);
   }
 }
 
-@keyframes semifinal-panel-in {
+@keyframes champion-panel-in {
   from {
     opacity: 0;
     transform: translateY(16px) scale(0.96);
@@ -730,59 +730,62 @@ tr.leaderboard-podium-first:hover {
   }
 }
 
-@keyframes semifinal-vs-pulse {
+@keyframes champion-trophy {
   0%,
   100% {
-    transform: scale(1);
-    text-shadow: 0 0 10px rgba(255, 213, 74, 0.35);
+    transform: translateY(0) scale(1) rotate(-4deg);
+    text-shadow: 0 0 14px rgba(255, 213, 74, 0.45);
   }
   50% {
-    transform: scale(1.12);
-    text-shadow: 0 0 22px rgba(255, 213, 74, 0.7);
+    transform: translateY(-6px) scale(1.1) rotate(4deg);
+    text-shadow: 0 0 28px rgba(255, 213, 74, 0.85);
   }
 }
 
-@keyframes semifinal-flare {
-  0%,
-  100% {
-    opacity: 0.3;
-    transform: translateY(0) scale(1);
+@keyframes champion-confetti {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) rotate(0deg);
   }
-  50% {
-    opacity: 0.85;
-    transform: translateY(-5px) scale(1.15);
+  15% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(120px) rotate(220deg);
   }
 }
 
-.semifinal-hero {
+.champion-hero {
   background-image: linear-gradient(
     110deg,
-    rgba(0, 206, 184, 0.14) 0%,
+    rgba(255, 213, 74, 0.16) 0%,
     rgba(20, 20, 30, 0.05) 35%,
-    rgba(255, 213, 74, 0.12) 60%,
-    rgba(0, 168, 146, 0.14) 100%
+    rgba(200, 16, 46, 0.12) 60%,
+    rgba(255, 213, 74, 0.16) 100%
   );
   background-size: 220% 100%;
-  animation: semifinal-sheen 10s linear infinite, semifinal-glow 4.5s ease-in-out infinite;
+  animation: champion-sheen 10s linear infinite, champion-glow 4.5s ease-in-out infinite;
 }
 
-.semifinal-panel {
-  animation: semifinal-panel-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+.champion-panel {
+  animation: champion-panel-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.semifinal-vs {
-  animation: semifinal-vs-pulse 2.4s ease-in-out infinite;
+.champion-trophy {
+  display: inline-block;
+  animation: champion-trophy 2.4s ease-in-out infinite;
 }
 
-.semifinal-flare {
-  animation: semifinal-flare 3s ease-in-out infinite;
+.champion-confetti {
+  animation: champion-confetti 3s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .semifinal-hero,
-  .semifinal-panel,
-  .semifinal-vs,
-  .semifinal-flare {
+  .champion-hero,
+  .champion-panel,
+  .champion-trophy,
+  .champion-confetti {
     animation: none;
     background-position: 0% 50%;
   }
